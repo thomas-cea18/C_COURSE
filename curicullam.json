@@ -1,0 +1,903 @@
+{
+  "curriculum_title": "Mastering C Programming: Ultimate Systems, Network & Embedded Expert",
+  "target_audience": "Intermediate developers aiming for elite Systems, Network, Kernel, or Embedded Engineering roles.",
+  "prerequisites": [
+    "Basic understanding of computer architecture (RAM, CPU)",
+    "Familiarity with the Linux command line (Bash/Zsh)"
+  ],
+  "target_roles": [
+    "Linux/Unix Systems Engineer",
+    "Embedded Firmware Developer",
+    "High-Frequency Trading (HFT) C/C++ Developer",
+    "Cybersecurity / Vulnerability Researcher",
+    "Linux Kernel Contributor"
+  ],
+  "total_days": 45,
+  "standards": [
+    "C89/C90",
+    "C99",
+    "C11",
+    "C17",
+    "C23"
+  ],
+  "modules": [
+    {
+      "module": "1: Professional Environment and Core Fundamentals",
+      "learning_outcomes": [
+        "Set up a reproducible C development environment using Docker.",
+        "Use Git for basic version control.",
+        "Understand primitive types, modifiers, and fundamental bitwise logic."
+      ],
+      "mini_project": "Build a command-line bitwise calculator (AND, OR, XOR, Shifts) with Git version history.",
+      "days": [
+        {
+          "day": 1,
+          "title": "Docker, GCC, and The Compilation Pipeline",
+          "estimated_hours": 3,
+          "topics": [
+            "Setting up a Linux Dev Container (Docker/VS Code)",
+            "The 4-stage compilation process (Preprocessor, Compiler, Assembler, Linker)",
+            "Using GCC/Clang via CLI (gcc -E, -S, -c, -o)"
+          ],
+          "visual_representation": "A flowchart showing the transformation from .c source code to a binary executable, highlighting intermediate files (.i, .s, .o).",
+          "deprecated_features": [],
+          "resources": [
+            "GNU GCC Documentation: Command Options"
+          ],
+          "assessment_check": "Can compile a multi-file program from the CLI inside a Docker container."
+        },
+        {
+          "day": 2,
+          "title": "Control Flow Basics",
+          "estimated_hours": 2,
+          "topics": [
+            "Branching: if, else, switch, case, default",
+            "Looping: while, do, for",
+            "Jump statements: break, continue, return"
+          ],
+          "visual_representation": "A flowchart comparing 'while' (entry-controlled) vs 'do-while' (exit-controlled) loops.",
+          "deprecated_features": [],
+          "resources": [
+            "Modern C - Level 0: Control Structures"
+          ],
+          "assessment_check": "Write a FizzBuzz program utilizing for, if, else, and continue."
+        },
+        {
+          "day": 3,
+          "title": "Primitive Types, Sizes, and Limits",
+          "estimated_hours": 3,
+          "topics": [
+            "Integer types (int, long, short, char) and signedness (signed, unsigned)",
+            "Floating point and math types (float, double, _Complex, _Imaginary)",
+            "The sizeof operator, the const qualifier, and exact-width types (stdint.h)"
+          ],
+          "visual_representation": "A table mapping standard C types to their guaranteed minimum sizes and exact-width counterparts.",
+          "deprecated_features": [
+            "Implicit int declaration (removed in C99)"
+          ],
+          "resources": [
+            "Modern C (Jens Gustedt) - Level 1: Primary types"
+          ],
+          "assessment_check": "Quiz on the difference between 'int' and 'int32_t', and initialize a complex number using _Complex."
+        },
+        {
+          "day": 4,
+          "title": "Bitwise Operations - The Heart of C",
+          "estimated_hours": 4,
+          "topics": [
+            "AND (&), OR (|), XOR (^), NOT (~)",
+            "Bit shifting (<<, >>) and sign extension anomalies",
+            "Practical bit masking (setting, clearing, toggling bits)"
+          ],
+          "visual_representation": "A visual mapping of 8-bit registers showing bits changing state during masking and shifting operations.",
+          "deprecated_features": [],
+          "resources": [
+            "K&R The C Programming Language: Chapter 2.9"
+          ],
+          "assessment_check": "Write a macro that safely extracts the 3rd through 6th bits of a 32-bit integer."
+        }
+      ]
+    },
+    {
+      "module": "2: Memory Layout, Pointers, and Arrays",
+      "learning_outcomes": [
+        "Visualize the C memory layout (Stack vs Data vs Text).",
+        "Confidently use pointers for memory manipulation.",
+        "Understand the relationship between pointers and arrays."
+      ],
+      "mini_project": "Develop a lightweight matrix manipulation library using 1D arrays mapped to 2D space via pointer arithmetic.",
+      "days": [
+        {
+          "day": 5,
+          "title": "C Program Memory Architecture & Linkage",
+          "estimated_hours": 3,
+          "topics": [
+            "Text, Data (BSS), Stack, and Heap",
+            "Storage classes and scope: static, extern, auto (legacy vs C23 meaning)",
+            "Thread-local storage (thread_local / _Thread_local)"
+          ],
+          "visual_representation": "A vertical memory map diagram showing how the stack grows downward and the heap grows upward.",
+          "deprecated_features": [
+            "The 'register' keyword (ignored by modern compilers as an optimization hint)"
+          ],
+          "resources": [
+            "Advanced C Programming (O'Reilly): Memory Management"
+          ],
+          "assessment_check": "Draw the memory layout of a program containing global extern, static, and thread_local variables."
+        },
+        {
+          "day": 6,
+          "title": "Introduction to Pointers",
+          "estimated_hours": 3.5,
+          "topics": [
+            "Address-of (&) and Dereference (*) operators",
+            "Pointer types, void pointers (void *), and pointer constness (const int * vs int * const)",
+            "Pointer arithmetic and scaling"
+          ],
+          "visual_representation": "A number line of memory addresses illustrating how incrementing an int pointer (p++) jumps by 4 bytes.",
+          "deprecated_features": [],
+          "resources": [
+            "C Programming: A Modern Approach (King) - Chapter 11"
+          ],
+          "assessment_check": "Debug a segmentation fault caused by dereferencing an uninitialized pointer."
+        },
+        {
+          "day": 7,
+          "title": "Arrays, VLAs, and Flexible Array Members",
+          "estimated_hours": 3,
+          "topics": [
+            "Array decay to pointers and Pointer Arithmetic: *(arr + i)",
+            "Pointers to Arrays vs Arrays of Pointers",
+            "Variable Length Arrays (VLAs) vs Flexible Array Members (FAMs) in network packets"
+          ],
+          "visual_representation": "A diagram mapping a 2D array [2][3] into a contiguous 1D memory block.",
+          "deprecated_features": [
+            "VLAs (made optional in C11, banned in Linux Kernel)"
+          ],
+          "resources": [
+            "CERT C Secure Coding: ARR30-C"
+          ],
+          "assessment_check": "Write a function that flattens a 2D array into a 1D array using only pointer arithmetic."
+        },
+        {
+          "day": 8,
+          "title": "Pointers to Pointers",
+          "estimated_hours": 3,
+          "topics": [
+            "Double pointers (**ptr)",
+            "Using double pointers to dynamically allocate memory inside functions",
+            "Command-line arguments (char *argv[])"
+          ],
+          "visual_representation": "A chain of three memory blocks demonstrating a pointer pointing to another pointer, which points to the data.",
+          "deprecated_features": [],
+          "resources": [
+            "Linux man pages: execve(2) to understand argv/envp"
+          ],
+          "assessment_check": "Parse command-line flags (e.g., -h, -v) manually using *argv[] without getopt."
+        }
+      ]
+    },
+    {
+      "module": "3: Strings, Preprocessor, and Test-Driven Development (TDD)",
+      "learning_outcomes": [
+        "Manipulate C-strings safely without buffer overflows.",
+        "Use the preprocessor for conditional compilation, type-generics, and assertions.",
+        "Write unit tests for C code."
+      ],
+      "mini_project": "Create a safe string tokenization utility and verify its reliability using the Unity Test Framework.",
+      "days": [
+        {
+          "day": 9,
+          "title": "C-Strings Under the Hood",
+          "estimated_hours": 3,
+          "topics": [
+            "Character arrays vs String literals (read-only memory)",
+            "The null terminator ('\\0') and its pitfalls",
+            "Safe string handling (snprintf, strncat)"
+          ],
+          "visual_representation": "Memory layout showing string literals stored in the read-only text segment vs mutable char arrays on the stack.",
+          "deprecated_features": [
+            "gets() (removed in C11)",
+            "strcpy() and strcat() (discouraged)"
+          ],
+          "resources": [
+            "CERT C Secure Coding: STR31-C"
+          ],
+          "assessment_check": "Identify the buffer overflow vulnerability in a provided snippet using strcpy."
+        },
+        {
+          "day": 10,
+          "title": "Test-Driven Development (TDD) in C",
+          "estimated_hours": 4,
+          "topics": [
+            "Introduction to the Unity Test Framework",
+            "Writing assertions (TEST_ASSERT_EQUAL_INT)",
+            "The Red-Green-Refactor cycle in embedded environments"
+          ],
+          "visual_representation": "A cyclical diagram showing Test Failure -> Write Code -> Test Pass -> Refactor.",
+          "deprecated_features": [],
+          "resources": [
+            "ThrowTheSwitch Unity Documentation"
+          ],
+          "assessment_check": "Write three failing unit tests for a string reversal function, then implement the C function."
+        },
+        {
+          "day": 11,
+          "title": "The Advanced Preprocessor & Variadic Functions",
+          "estimated_hours": 3.5,
+          "topics": [
+            "Include guards, do-while(0) macro idiom, and token pasting (##)",
+            "Type-generic programming with the _Generic keyword",
+            "Variadic Functions (<stdarg.h>, va_list, vsnprintf) and custom logging macros"
+          ],
+          "visual_representation": "Code snippets showing a custom LOG_ERROR macro unpacking variadic arguments safely into a vsnprintf buffer.",
+          "deprecated_features": [],
+          "resources": [
+            "GCC CPP Manual: Macros",
+            "man 3 stdarg"
+          ],
+          "assessment_check": "Write a variadic custom_printf function that routes output to a specific file descriptor."
+        }
+      ]
+    },
+    {
+      "module": "4: Custom Data Types, Structs, and Data Packing",
+      "learning_outcomes": [
+        "Design complex data types using structs, unions, and enums.",
+        "Control memory alignment explicitly using alignas.",
+        "Implement bit-fields for hardware-level data manipulation."
+      ],
+      "mini_project": "Build a network IPv4 packet parser that maps raw byte streams directly into explicitly packed C structs.",
+      "days": [
+        {
+          "day": 12,
+          "title": "Structures, Enums, and Typedef",
+          "estimated_hours": 2,
+          "topics": [
+            "Defining structs and enumerations (enum)",
+            "Accessing members (. and ->)",
+            "Using typedef for opaque types and type aliasing"
+          ],
+          "visual_representation": "A composite memory block illustrating how disparate data types are grouped.",
+          "deprecated_features": [],
+          "resources": [
+            "Modern C - Level 1: Derived data types"
+          ],
+          "assessment_check": "Create a linked list node struct and define an opaque typedef for it in a header file."
+        },
+        {
+          "day": 13,
+          "title": "Memory Alignment and Padding",
+          "estimated_hours": 3,
+          "topics": [
+            "CPU word boundaries and padding bytes",
+            "Querying and enforcing alignment with alignof (_Alignof) and alignas (_Alignas)",
+            "Packing structs (__attribute__((packed)) / #pragma pack)"
+          ],
+          "visual_representation": "A byte-grid diagram showing 'wasted' padding bytes inserted between a char and an int.",
+          "deprecated_features": [],
+          "resources": [
+            "The Lost Art of Structure Packing (Eric S. Raymond)"
+          ],
+          "assessment_check": "Use alignas to force a struct to align to a 64-byte boundary (cache line size)."
+        },
+        {
+          "day": 14,
+          "title": "Unions, Bit-Fields, and Endianness",
+          "estimated_hours": 3.5,
+          "topics": [
+            "Type punning using unions",
+            "Defining bit-fields in structs for hardware registers",
+            "Detecting and handling Big-Endian vs Little-Endian"
+          ],
+          "visual_representation": "An overlapping memory block demonstrating how modifying one union member overwrites the others based on endianness.",
+          "deprecated_features": [],
+          "resources": [
+            "MISRA C:2012 Rule 19.2"
+          ],
+          "assessment_check": "Extract the exponent and mantissa from an IEEE 754 float using a union and bit-fields."
+        }
+      ]
+    },
+    {
+      "module": "5: Advanced Data Structures & Algorithms",
+      "learning_outcomes": [
+        "Implement and manage dynamic data structures manually.",
+        "Understand Big-O complexity in relation to C memory access."
+      ],
+      "mini_project": "Develop a lightweight, generic Hash Table dictionary (key-value store) in C using djb2 hashing.",
+      "days": [
+        {
+          "day": 15,
+          "title": "Singly and Doubly Linked Lists",
+          "estimated_hours": 4,
+          "topics": [
+            "Node memory ownership and lifecycle",
+            "Insertion, Deletion, and Traversal algorithms",
+            "Cycle detection (Floyd's Tortoise and Hare)"
+          ],
+          "visual_representation": "Linked boxes with bi-directional arrows demonstrating insertion of a new node in the middle of a doubly linked list.",
+          "deprecated_features": [],
+          "resources": [
+            "MIT 6.087: Practical Programming in C"
+          ],
+          "assessment_check": "Write a function to reverse a singly linked list in-place."
+        },
+        {
+          "day": 16,
+          "title": "Stacks, Queues, and Ring Buffers",
+          "estimated_hours": 3,
+          "topics": [
+            "LIFO vs FIFO principles",
+            "Array-based vs Linked-List based implementations",
+            "Implementing a Ring Buffer for embedded sensor data"
+          ],
+          "visual_representation": "A circular array diagram with head and tail pointers chasing each other.",
+          "deprecated_features": [],
+          "resources": [
+            "Coursera: Data Structures"
+          ],
+          "assessment_check": "Implement a generic queue using an array of void pointers."
+        },
+        {
+          "day": 17,
+          "title": "Binary Trees and BSTs",
+          "estimated_hours": 4,
+          "topics": [
+            "Tree node structures and recursion limits",
+            "In-order, Pre-order, Post-order traversal",
+            "Memory cleanup via post-order deletion"
+          ],
+          "visual_representation": "A hierarchical tree diagram with nodes distributed based on greater-than/less-than rules.",
+          "deprecated_features": [],
+          "resources": [
+            "CS50 (Harvard) - Lecture 5"
+          ],
+          "assessment_check": "Write a recursive function to find the maximum depth of a Binary Search Tree."
+        },
+        {
+          "day": 18,
+          "title": "Hash Tables and Hash Functions",
+          "estimated_hours": 4,
+          "topics": [
+            "Writing a simple string hash function (djb2)",
+            "Handling collisions via Chaining (Linked Lists)",
+            "Dynamic resizing and load factors"
+          ],
+          "visual_representation": "An array of pointers where each index points to a linked list resolving hash collisions.",
+          "deprecated_features": [],
+          "resources": [
+            "Introduction to Algorithms (Cormen) - Chapter 11"
+          ],
+          "assessment_check": "Implement collision resolution chaining for a provided Hash Table skeleton."
+        }
+      ]
+    },
+    {
+      "module": "6: Dynamic Memory, Function Pointers, and Exceptions",
+      "learning_outcomes": [
+        "Manage the heap safely.",
+        "Implement callback architectures.",
+        "Handle severe errors utilizing setjmp and noreturn attributes."
+      ],
+      "mini_project": "Build an event-driven state machine using an array of function pointers and setjmp error recovery.",
+      "days": [
+        {
+          "day": 19,
+          "title": "The Heap and Memory Tracking",
+          "estimated_hours": 3.5,
+          "topics": [
+            "Requesting/resizing dynamic memory (malloc, calloc, realloc)",
+            "Dangling pointers and Double Free errors",
+            "Writing a custom wrapper for malloc to track memory usage"
+          ],
+          "visual_representation": "A visual showing memory blocks being checked out from the heap and returned to the free pool.",
+          "deprecated_features": [],
+          "resources": [
+            "man 3 malloc"
+          ],
+          "assessment_check": "Allocate a 2D array dynamically as a single contiguous block and free it."
+        },
+        {
+          "day": 20,
+          "title": "Function Pointers and Callbacks",
+          "estimated_hours": 4,
+          "topics": [
+            "Syntax of function pointers",
+            "Arrays of function pointers (jump tables / vtables)",
+            "Implementing comparators for qsort() and bsearch()"
+          ],
+          "visual_representation": "A flowchart showing a library function (qsort) calling back into user-defined code.",
+          "deprecated_features": [],
+          "resources": [
+            "man 3 qsort"
+          ],
+          "assessment_check": "Write an array of function pointers to replace a massive if-else block."
+        },
+        {
+          "day": 21,
+          "title": "Advanced Jumps and Exit Behaviors",
+          "estimated_hours": 3,
+          "topics": [
+            "Clean exit strategies using the 'goto' keyword for resource cleanup",
+            "Exception-like handling using setjmp.h and longjmp()",
+            "Functions that never return (_Noreturn / noreturn)"
+          ],
+          "visual_representation": "A diagram mapping the call stack and showing a longjmp abruptly returning execution to a saved setjmp environment.",
+          "deprecated_features": [],
+          "resources": [
+            "man 3 setjmp"
+          ],
+          "assessment_check": "Implement a try-catch mechanism using setjmp/longjmp, and declare a panic() function using _Noreturn."
+        }
+      ]
+    },
+    {
+      "module": "7: File I/O, POSIX, and Advanced Systems Programming",
+      "learning_outcomes": [
+        "Read and write text/binary files.",
+        "Use POSIX system calls for direct kernel interaction.",
+        "Implement memory-mapped I/O (mmap) and ioctl.",
+        "Write background daemon processes."
+      ],
+      "mini_project": "Write a custom background daemon that detaches from the terminal and configures devices via ioctl.",
+      "days": [
+        {
+          "day": 22,
+          "title": "Standard I/O Streams and Binary Files",
+          "estimated_hours": 3,
+          "topics": [
+            "fopen, fclose, and standard streams (stdin/out/err)",
+            "fread() and fwrite() for binary structs",
+            "fseek, ftell, and random file access"
+          ],
+          "visual_representation": "A slider diagram showing a file pointer moving arbitrarily through a file buffer.",
+          "deprecated_features": [],
+          "resources": [
+            "K&R The C Programming Language: Chapter 7"
+          ],
+          "assessment_check": "Save an array of structs to a binary file and successfully read them back."
+        },
+        {
+          "day": 23,
+          "title": "System Calls, ioctl, and mmap",
+          "estimated_hours": 4,
+          "topics": [
+            "User space vs Kernel space context switching",
+            "POSIX open(), read(), write(), and ioctl() for device configuration",
+            "Zero-copy I/O: mmap() and Direct Memory Access (DMA) concepts"
+          ],
+          "visual_representation": "A memory architecture diagram showing mmap bypassing the standard I/O buffer to map a physical file directly into virtual memory.",
+          "deprecated_features": [],
+          "resources": [
+            "Advanced Programming in the UNIX Environment (APUE)",
+            "man 2 mmap"
+          ],
+          "assessment_check": "Rewrite a file reading utility to use mmap instead of fread, and query terminal size using ioctl."
+        },
+        {
+          "day": 24,
+          "title": "Process Control (fork/exec) and Daemons",
+          "estimated_hours": 4,
+          "topics": [
+            "fork() and process cloning, wait() for zombie/orphan processes",
+            "exec() family to replace process images",
+            "Daemonization techniques (double-fork, setsid, detaching from terminals)"
+          ],
+          "visual_representation": "A process tree diagram showing a double-fork detaching a child process from its controlling terminal to become a daemon.",
+          "deprecated_features": [],
+          "resources": [
+            "man 2 fork",
+            "APUE - Chapter 13 (Daemon Processes)"
+          ],
+          "assessment_check": "Write a C program that daemonizes itself using the double-fork technique and setsid()."
+        },
+        {
+          "day": 25,
+          "title": "POSIX Signals and Interruption",
+          "estimated_hours": 3,
+          "topics": [
+            "Signal handling (signal.h, sigaction)",
+            "Handling SIGSEGV (Segfaults) and SIGINT gracefully",
+            "Reentrancy and async-signal-safe functions"
+          ],
+          "visual_representation": "A timeline showing normal execution interrupted by a signal, transferring control to a signal handler, and returning.",
+          "deprecated_features": [
+            "signal() (deprecated in favor of sigaction() for portability)"
+          ],
+          "resources": [
+            "APUE - Chapter 10 (Signals)"
+          ],
+          "assessment_check": "Write a program that ignores Ctrl+C three times before finally exiting."
+        }
+      ]
+    },
+    {
+      "module": "8: Build Systems, Libraries, and Cross-Compilation",
+      "learning_outcomes": [
+        "Write advanced CMake scripts.",
+        "Create and link Static and Shared/Dynamic Libraries.",
+        "Understand Link-Time Optimization and GOT/PLT."
+      ],
+      "mini_project": "Build a modular math library, compile it into an `.so` file, and write a CMake script to cross-compile it with LTO.",
+      "days": [
+        {
+          "day": 26,
+          "title": "Build Systems: Make and Modern CMake",
+          "estimated_hours": 4,
+          "topics": [
+            "Writing Makefiles (Targets, Dependencies, Rules)",
+            "Compiler flags (-Wall, -Wextra, -O3, -march=native)",
+            "Link-Time Optimization (-flto) and modern CMakeLists.txt"
+          ],
+          "visual_representation": "A dependency graph showing which source files must recompile when a single header changes.",
+          "deprecated_features": [],
+          "resources": [
+            "CMake Tutorial (cmake.org)"
+          ],
+          "assessment_check": "Write a CMakeLists.txt that links an executable against a separate static library with LTO enabled."
+        },
+        {
+          "day": 27,
+          "title": "ELF Binaries, Dynamic Linkers, and GOT/PLT",
+          "estimated_hours": 4,
+          "topics": [
+            "The Executable and Linkable Format (ELF) and binary tooling (readelf, objdump, nm)",
+            "Creating shared libraries (gcc -shared -fPIC, .so files)",
+            "Understanding LD_LIBRARY_PATH, the Global Offset Table (GOT), and Procedure Linkage Table (PLT)"
+          ],
+          "visual_representation": "A diagram illustrating the dynamic linker resolving a library function call via the PLT and updating the GOT.",
+          "deprecated_features": [],
+          "resources": [
+            "TLDP: Program Library HOWTO"
+          ],
+          "assessment_check": "Compile a .c file into a .so shared library and link it to a main program at runtime."
+        },
+        {
+          "day": 28,
+          "title": "Cross-Compilation and Toolchains",
+          "estimated_hours": 3,
+          "topics": [
+            "Understanding host vs target architectures",
+            "Setting up a cross-compiler toolchain (e.g., arm-none-eabi-gcc)",
+            "Using CMake Toolchain files for embedded targets"
+          ],
+          "visual_representation": "A workflow diagram showing x86 source code being compiled via an ARM GCC toolchain to output an ARM ELF binary.",
+          "deprecated_features": [],
+          "resources": [
+            "CMake Documentation: Cross Compiling"
+          ],
+          "assessment_check": "Cross-compile a C program on an x86 machine so that it runs on an ARM architecture."
+        }
+      ]
+    },
+    {
+      "module": "9: Concurrency, Multithreading, and IPC",
+      "learning_outcomes": [
+        "Create and manage POSIX threads.",
+        "Prevent race conditions using advanced locking mechanisms.",
+        "Facilitate Inter-Process Communication (IPC)."
+      ],
+      "mini_project": "Implement a high-throughput, multi-threaded producer-consumer queue safely using semaphores and mutexes.",
+      "days": [
+        {
+          "day": 29,
+          "title": "Pthreads, Memory Sharing, and Reentrancy",
+          "estimated_hours": 3.5,
+          "topics": [
+            "pthread_create, pthread_join, pthread_detach",
+            "Thread-local errno and reentrant POSIX functions (e.g., strtok_r vs strtok)",
+            "Identifying race conditions and thread sanitizer (TSan)"
+          ],
+          "visual_representation": "A diagram contrasting multiple single-threaded processes with one multi-threaded process sharing the heap.",
+          "deprecated_features": [],
+          "resources": [
+            "POSIX Threads Programming (LLNL Tutorial)"
+          ],
+          "assessment_check": "Demonstrate a race condition by having 10 threads increment a shared counter without locking."
+        },
+        {
+          "day": 30,
+          "title": "Synchronization: Mutexes, Semaphores, and RW Locks",
+          "estimated_hours": 4,
+          "topics": [
+            "Mutual Exclusion (pthread_mutex_t) and Condition Variables",
+            "POSIX Semaphores (sem_t) for resource counting (Producer-Consumer)",
+            "Read-Write locks (pthread_rwlock_t) for high-concurrency read-heavy data"
+          ],
+          "visual_representation": "A state machine diagram of a thread sleeping on a condition variable until another thread signals.",
+          "deprecated_features": [],
+          "resources": [
+            "APUE - Chapter 11 (Threads)"
+          ],
+          "assessment_check": "Implement a Producer-Consumer queue using sem_wait and sem_post."
+        },
+        {
+          "day": 31,
+          "title": "Inter-Process Communication (IPC)",
+          "estimated_hours": 3,
+          "topics": [
+            "Anonymous pipes (pipe()) and FIFOs",
+            "POSIX Shared Memory (shm_open)",
+            "Message Queues and Unix Domain Sockets"
+          ],
+          "visual_representation": "A memory map showing two distinct process virtual memory spaces mapping to the same physical RAM block via mmap.",
+          "deprecated_features": [
+            "System V IPC (shmget, msgget)"
+          ],
+          "resources": [
+            "man 7 ipc"
+          ],
+          "assessment_check": "Pass a string message from a parent process to a child process using a Unix Domain Socket."
+        }
+      ]
+    },
+    {
+      "module": "10: Secure Coding, Fuzzing, and Elite Embedded Contexts",
+      "learning_outcomes": [
+        "Detect vulnerabilities and understand Undefined Behavior.",
+        "Write and execute Fuzz tests.",
+        "Write Bare-Metal startup code and Inline Assembly."
+      ],
+      "mini_project": "Write a fuzzer for a parser to find edge cases, then implement an ISR via inline assembly.",
+      "days": [
+        {
+          "day": 32,
+          "title": "Core Dumps, GDB, and Compiler Sanitizers",
+          "estimated_hours": 4,
+          "topics": [
+            "Post-mortem debugging with GDB, inspecting core dumps, and tracing syscalls with strace",
+            "Sequence Points and strict Undefined Behavior (e.g., i = i++)",
+            "Using AddressSanitizer (ASan) and UndefinedBehaviorSanitizer (UBSan)"
+          ],
+          "visual_representation": "A stack smashing diagram showing malicious input overflowing an array, accompanied by an ASan red-zone detection log.",
+          "deprecated_features": [
+            "sprintf() (prefer snprintf())"
+          ],
+          "resources": [
+            "Google Sanitizers GitHub Wiki"
+          ],
+          "assessment_check": "Compile a buggy program with ASan and use the stack trace to fix an out-of-bounds array read."
+        },
+        {
+          "day": 33,
+          "title": "Fuzz Testing (AFL++ / libFuzzer)",
+          "estimated_hours": 4,
+          "topics": [
+            "The concept of Coverage-Guided Fuzzing",
+            "Setting up AFL++ (American Fuzzy Lop)",
+            "Writing fuzz harnesses for C functions"
+          ],
+          "visual_representation": "A workflow diagram showing a fuzzer generating mutated inputs, feeding them into the binary, and tracking paths.",
+          "deprecated_features": [],
+          "resources": [
+            "AFL++ Official Documentation"
+          ],
+          "assessment_check": "Run AFL++ on a vulnerable parsing function until it forces a crash."
+        },
+        {
+          "day": 34,
+          "title": "Bare-Metal Embedded, volatile, and Inline ASM",
+          "estimated_hours": 3.5,
+          "topics": [
+            "Linker Scripts (.ld) and Bare-Metal Startup Code (CRT0)",
+            "The volatile keyword and Memory-Mapped I/O (MMIO)",
+            "Inline Assembly (__asm__) and Interrupt Service Routines (ISRs)"
+          ],
+          "visual_representation": "A diagram mapping a C struct with volatile pointers directly onto the memory addresses of hardware registers.",
+          "deprecated_features": [],
+          "resources": [
+            "Embedded C Coding Standard (Barr Group)"
+          ],
+          "assessment_check": "Write a linker script snippet to place a `.bss` section, and use inline assembly to execute a NOP."
+        },
+        {
+          "day": 35,
+          "title": "MISRA C and Static Analysis",
+          "estimated_hours": 2.5,
+          "topics": [
+            "Core principles of MISRA C:2012 for automotive/aerospace",
+            "Running static analysis tools (cppcheck, clang-tidy)",
+            "Banning dynamic memory (malloc) in safety-critical systems"
+          ],
+          "visual_representation": "A terminal output of clang-tidy highlighting MISRA rule violations in source code.",
+          "deprecated_features": [],
+          "resources": [
+            "cppcheck documentation"
+          ],
+          "assessment_check": "Run cppcheck on a previous mini-project and resolve all reported warnings."
+        }
+      ]
+    },
+    {
+      "module": "11: High-Performance Architecture, SIMD, and FFI",
+      "learning_outcomes": [
+        "Optimize code utilizing SIMD intrinsics and strict aliasing.",
+        "Implement Lock-free data structures using Atomics.",
+        "Interface C code with Python."
+      ],
+      "mini_project": "Write an AVX-optimized lock-free math module, compile it to `.so`, and execute it natively via Python.",
+      "days": [
+        {
+          "day": 36,
+          "title": "CPU Caches, SIMD, and Branch Prediction",
+          "estimated_hours": 3.5,
+          "topics": [
+            "L1/L2/L3 Cache Lines, AoS vs SoA, and the 'restrict' keyword",
+            "Compiler Branch Prediction (__builtin_expect / [[likely]])",
+            "SIMD Vectorization and Compiler Intrinsics (AVX2/NEON)"
+          ],
+          "visual_representation": "A diagram illustrating memory prefetching and how SIMD executes one instruction across multiple data points concurrently.",
+          "deprecated_features": [],
+          "resources": [
+            "Intel Intrinsics Guide"
+          ],
+          "assessment_check": "Optimize a loop processing an array using __builtin_expect for the standard case and AVX intrinsics for the math."
+        },
+        {
+          "day": 37,
+          "title": "Atomics, Lock-Free Programming, and the ABA Problem",
+          "estimated_hours": 4,
+          "topics": [
+            "The _Atomic keyword (stdatomic.h) and hardware compare-and-swap",
+            "The ABA Problem in lock-free structures and mitigation strategies (Hazard Pointers)",
+            "Memory orderings and explicit fences (atomic_thread_fence)"
+          ],
+          "visual_representation": "A diagram illustrating 'False Sharing', where two threads modify independent variables on the same 64-byte CPU cache line.",
+          "deprecated_features": [],
+          "resources": [
+            "C11 Standard Library: <stdatomic.h>"
+          ],
+          "assessment_check": "Implement a lock-free thread-safe counter using _Atomic instead of mutexes."
+        },
+        {
+          "day": 38,
+          "title": "Profiling (perf), Flame Graphs, and eBPF",
+          "estimated_hours": 3,
+          "topics": [
+            "CPU Profiling using Linux 'perf'",
+            "Generating and reading Flame Graphs",
+            "Introduction to eBPF for advanced kernel and network tracing"
+          ],
+          "visual_representation": "A flame graph showing which C functions consume the most CPU time during load testing.",
+          "deprecated_features": [],
+          "resources": [
+            "Brendan Gregg: Linux perf Examples",
+            "eBPF.io Documentation"
+          ],
+          "assessment_check": "Run 'perf record' on a slow recursive function and identify the performance bottleneck."
+        },
+        {
+          "day": 39,
+          "title": "Foreign Function Interface (FFI) with Python",
+          "estimated_hours": 4,
+          "topics": [
+            "Creating an Application Binary Interface (ABI) layer",
+            "Calling C from Python using ctypes / cffi",
+            "Memory management across language boundaries"
+          ],
+          "visual_representation": "A layer diagram showing a Python script interfacing with a compiled C `.so` file via ctypes.",
+          "deprecated_features": [],
+          "resources": [
+            "Python ctypes Documentation"
+          ],
+          "assessment_check": "Compile a C function that calculates Fibonacci into a .so file, and call it successfully from a Python script."
+        }
+      ]
+    },
+    {
+      "module": "12: C23 Modernization and Capstone Implementation",
+      "learning_outcomes": [
+        "Use modern C23 standards to write cleaner code.",
+        "Architect a complex C application utilizing Arena Allocators.",
+        "Implement high-performance TCP/UDP networking protocols."
+      ],
+      "mini_project": "Final Capstone: Build a high-performance, multithreaded HTTP Web Server utilizing epoll and custom Arena memory allocators.",
+      "days": [
+        {
+          "day": 40,
+          "title": "Embracing C23 Features",
+          "estimated_hours": 3,
+          "topics": [
+            "Keywords: nullptr, bool, true, false, constexpr",
+            "typeof and typeof_unqual for type inference, and _BitInt for exact-width integers",
+            "#embed for binary data inclusion"
+          ],
+          "visual_representation": "A split-screen code comparison of legacy C99 code vs modernized, cleaner C23 code.",
+          "deprecated_features": [
+            "Relying on the NULL macro",
+            "Including <stdbool.h>",
+            "K&R style function definitions (officially removed in C23)"
+          ],
+          "resources": [
+            "WG14 N3096 (C23 Standard Draft)"
+          ],
+          "assessment_check": "Refactor a script to replace all NULL macros with nullptr and use #embed to load a text file at compile time."
+        },
+        {
+          "day": 41,
+          "title": "Network Socket Basics (TCP vs UDP)",
+          "estimated_hours": 4,
+          "topics": [
+            "Network Socket Basics (socket, bind, listen, accept)",
+            "Connectionless sockets (SOCK_DGRAM), sendto/recvfrom, and UDP Multicast",
+            "Handling simple HTTP Requests"
+          ],
+          "visual_representation": "A sequence diagram illustrating the 3-way TCP handshake and HTTP transaction.",
+          "deprecated_features": [],
+          "resources": [
+            "Beej's Guide to Network Programming"
+          ],
+          "assessment_check": "Successfully serve a static HTML page over localhost:8080 using a blocking C socket."
+        },
+        {
+          "day": 42,
+          "title": "High-Performance I/O (epoll / kqueue)",
+          "estimated_hours": 5,
+          "topics": [
+            "The C10k problem",
+            "Non-blocking I/O (fcntl)",
+            "Event-driven architecture using epoll (Linux) or kqueue (macOS)"
+          ],
+          "visual_representation": "An architecture diagram showing a single C event loop managing thousands of non-blocking sockets efficiently.",
+          "deprecated_features": [
+            "select() and poll() (deprecated for high performance due to O(N) scaling)"
+          ],
+          "resources": [
+            "man 7 epoll"
+          ],
+          "assessment_check": "Upgrade the web server from blocking sockets to an epoll event loop."
+        },
+        {
+          "day": 43,
+          "title": "Protocol Parsing and Elite Memory Allocators",
+          "estimated_hours": 5,
+          "topics": [
+            "Parsing HTTP Headers safely without buffer overflows",
+            "Custom Memory Allocators: Arena, Pool, and Slab Allocation logic",
+            "Serving static files from disk using mmap"
+          ],
+          "visual_representation": "A memory map contrasting a fragmented standard heap with a contiguous Arena Allocator tailored for localized, fast network request lifetimes.",
+          "deprecated_features": [],
+          "resources": [
+            "RFC 9112 - HTTP/1.1 Message Syntax and Routing"
+          ],
+          "assessment_check": "Implement an Arena allocator that provisions a single massive block and parcels it out for incoming requests without individual mallocs."
+        },
+        {
+          "day": 44,
+          "title": "Thread Pool Integration and Load Testing",
+          "estimated_hours": 5,
+          "topics": [
+            "Combining epoll with a worker Thread Pool",
+            "Using tools like Apache Bench (ab) or wrk for load testing",
+            "Analyzing memory leaks under extreme load with ASan"
+          ],
+          "visual_representation": "A diagram showing the main epoll thread accepting connections and pushing file descriptors into a queue for worker threads.",
+          "deprecated_features": [],
+          "resources": [
+            "Advanced Linux Programming: Threads"
+          ],
+          "assessment_check": "Achieve 0 memory leaks in ASan while serving 10,000 concurrent requests via Apache Bench."
+        },
+        {
+          "day": 45,
+          "title": "Final Code Review and Deployment",
+          "estimated_hours": 3,
+          "topics": [
+            "Static analysis with clang-tidy",
+            "Generating documentation using Doxygen",
+            "Writing a Dockerfile to containerize the final Web Server"
+          ],
+          "visual_representation": "A Git workflow diagram showing final commits being merged, tagged for release, and built into a Docker image.",
+          "deprecated_features": [],
+          "resources": [
+            "Doxygen Manual",
+            "Docker Documentation"
+          ],
+          "assessment_check": "Successfully build a Docker image containing your compiled C server and run it port-forwarded to your local machine."
+        }
+      ]
+    }
+  ]
+}

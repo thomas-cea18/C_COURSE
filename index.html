@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mastering C: Systems & Embedded Expert</title>
+    
+    <link rel="stylesheet" href="style.css">
+    
+    <link rel="stylesheet" href="assets/prism-tomorrow.min.css" onerror="console.log('Prism CSS missing. UI will fallback to raw text.')">
+    
+    <script src="assets/mermaid.min.js" onerror="console.log('Mermaid local script not found. Diagrams will fallback to text.')"></script>
+    <script src="assets/lottie.min.js" onerror="console.log('Lottie local script not found. Animations will fallback to static.')"></script>
+</head>
+<body>
+    <div class="bg-grid"></div> 
+
+    <nav id="sidebar">
+        <div class="sidebar-header">
+            <h2 onclick="renderLandingPage()">Omnibus Engine</h2>
+            <button class="icon-btn" onclick="toggleSidebar()" data-icon="chevron-left"></button>
+        </div>
+        
+        <div id="nav-container"></div>
+        
+        <div class="progress-container">
+            <div class="progress-header">
+                <span>Core Calibration</span>
+                <span id="progress-val">0%</span>
+            </div>
+            <div class="progress-track">
+                <div id="progress-bar"></div>
+            </div>
+        </div>
+    </nav>
+
+    <main id="main-content">
+        <div class="top-bar">
+            <button class="icon-btn" onclick="toggleSidebar()">
+                <span data-icon="menu"></span> <span class="hide-mobile">Menu</span>
+            </button>
+            
+            <div id="stepper-mount"></div>
+            
+            <button class="icon-btn" onclick="toggleMode()">
+                <span id="theme-icon" data-icon="moon"></span> <span id="theme-text" class="hide-mobile">Dark Mode</span>
+            </button>
+        </div>
+        
+        <div id="render-target">
+            <div class="init-loader">
+                <div class="spinner"></div>
+                <p>Initializing C-Systems Data Pipeline...</p>
+            </div>
+        </div>
+    </main>
+
+    <script src="engine.js"></script>
+
+    <script src="assets/prism.min.js" onerror="console.log('Prism core missing')"></script>
+    <script src="assets/prism-c.min.js" onerror="console.log('Prism C module missing')"></script>
+</body>
+</html>
