@@ -1,0 +1,255 @@
+{
+  "day": 36,
+  "module": "10: Security, Fuzzing, & Tooling",
+  "topics": [
+    {
+      "header_hub": {
+        "title": "Memory Profiling and Leak Detection via Valgrind's Memcheck",
+        "category": "Tooling",
+        "complexity": "Intermediate",
+        "standard": "Linux ABI",
+        "read_time": 25,
+        "prerequisites": ["day-16-topic-1", "day-17-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day36-t1-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day36-t1-txt-strategic-problem",
+          "content": "<p>In C, memory management is entirely manual. If you allocate memory on the Heap using <code>malloc()</code> and forget to call <code>free()</code>, the Operating System will not clean it up until your entire program terminates. In a long-running daemon (like a web server or database), a 10-byte memory leak per request will eventually consume all 64GB of physical RAM, triggering the brutal OS OOM-Killer. Finding a missing <code>free()</code> call hidden inside 50,000 lines of C code manually is impossible. We need a tool that watches every single allocation and tracks it chronologically. Enter <strong>Valgrind</strong>.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day36-t1-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day36-t1-api-main",
+          "signature": "$ gcc -g -O0 main.c -o my_app\n$ valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./my_app",
+          "description": "The command-line invocation to wrap a C binary in the Valgrind Memcheck Virtual Machine.",
+          "parameters": [
+            { "name": "-g -O0", "type": "Compiler Flags", "description": "Mandatory. -g embeds debug symbols so Valgrind can print exact line numbers. -O0 disables optimizations that might mask memory layouts." },
+            { "name": "--leak-check=full", "type": "Valgrind Flag", "description": "Provides a highly detailed trace of exactly where the leaked memory was originally allocated." },
+            { "name": "--track-origins=yes", "type": "Valgrind Flag", "description": "Tracks uninitialized variables back to their exact declaration point, though it imposes a massive performance penalty." }
+          ],
+          "returns": { "type": "Terminal Output", "description": "A detailed HEAP SUMMARY showing 'definitely lost', 'indirectly lost', and 'still reachable' bytes." },
+          "complexity": "Valgrind runs the program on a simulated CPU, imposing a devastating 10x to 50x execution slowdown.",
+          "exceptions": "Cannot be used on programs that require strict, microsecond timing constraints (like hardware drivers) due to the VM overhead."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day36-t1-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day36-t1-txt-mechanics",
+          "content": "<p>Valgrind is not a standard profiler; it is a <strong>Dynamic Binary Instrumentation (DBI)</strong> framework. It does not run your code natively on the CPU. It literally translates your compiled x86 machine code into a synthetic intermediate architecture, injects massive amounts of surveillance code around every single memory access, and then translates it back to x86 before executing it. Memcheck, its default tool, intercepts all calls to <code>malloc</code>, <code>calloc</code>, <code>realloc</code>, and <code>free</code>. It maintains an internal Hash Table mapping every active Heap pointer. When the program exits, Valgrind cross-references its Hash Table. Any memory block that was allocated but lacks a corresponding <code>free</code> event is mathematically proven to be a memory leak, and Valgrind prints the exact call stack that originally spawned it.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day36-t1-sec-trench-story",
+          "title": "Production Trench Story"
+        },
+        {
+          "type": "callout",
+          "block_id": "day36-t1-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage: The Early Return Leak",
+          "content": "<p>A high-performance C database engine was crashing every 48 hours due to OOM (Out of Memory). Code reviews turned up nothing; the developer correctly wrote <code>free(buffer);</code> at the end of the parsing function. An engineer compiled the binary with <code>-g</code> and ran it through Valgrind in the staging environment. Valgrind instantly flagged 14,000 memory leaks originating from line 42. Line 42 was the <code>malloc</code> call. Looking closer at the code, they found an <code>if (packet_corrupted) return -1;</code> statement on line 50. If the packet was malformed, the function returned early, completely bypassing the <code>free(buffer);</code> call at the bottom of the function. The internet is noisy; bad packets happen constantly. Every bad packet leaked 4KB of RAM. The engineer patched it by adding a <code>free</code> inside the error block, curing the server instantly.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day36-t1-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day36-t1-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "Why does running an application under Valgrind's Memcheck typically cause a 10x to 50x reduction in execution speed?",
+              "options": [
+                { "id": "t1-q1-a", "text": "Because it forces the application to swap memory to the hard drive continuously.", "is_correct": false, "explanation": "It heavily uses RAM, but swap is not the primary cause of the slowdown." },
+                { "id": "t1-q1-b", "text": "Because Valgrind physically replaces the Linux Kernel.", "is_correct": false, "explanation": "Valgrind operates entirely in User Space." },
+                { "id": "t1-q1-c", "text": "Valgrind is a Dynamic Binary Instrumentation framework. It does not execute the binary natively. It translates the machine code into a virtual CPU, injects surveillance instructions before every single read/write operation, and simulates the execution.", "is_correct": true, "explanation": "This synthetic execution guarantees absolute accuracy at the cost of catastrophic latency." },
+                { "id": "t1-q1-d", "text": "Because it disables the CPU's L1 cache.", "is_correct": false, "explanation": "The hardware cache functions normally, but the instruction volume is massively inflated." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Compiling with GCC Sanitizers (ASan, UBSan, TSan)",
+        "category": "Tooling",
+        "complexity": "Advanced",
+        "standard": "GCC / Clang",
+        "read_time": 25,
+        "prerequisites": ["day-36-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day36-t2-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day36-t2-txt-strategic-problem",
+          "content": "<p>Valgrind is incredible, but its fatal flaw is its execution speed. If you are developing a real-time video game or a high-throughput network router, slowing the code by 50x will break network timeouts, corrupt the physics engine, and render the program entirely untestable in realistic conditions. We need a way to detect memory corruption, undefined behavior, and multithreaded data races at <em>near-native speeds</em>. Google solved this by building <strong>Compiler Sanitizers</strong> directly into GCC and Clang. Instead of simulating the CPU at runtime, the compiler itself injects surgical, hyper-optimized assembly checks around your variables during the compilation phase.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day36-t2-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day36-t2-api-main",
+          "signature": "$ gcc -O1 -g -fsanitize=address main.c -o app\n$ gcc -O1 -g -fsanitize=undefined main.c -o app\n$ gcc -O1 -g -fsanitize=thread main.c -o app",
+          "description": "The GCC/Clang flags required to bake runtime verification logic into the resulting ELF binary.",
+          "parameters": [
+            { "name": "-fsanitize=address (ASan)", "type": "Flag", "description": "Detects Out-of-Bounds accesses (Buffer Overflows) and Use-After-Free (UAF) vulnerabilities." },
+            { "name": "-fsanitize=undefined (UBSan)", "type": "Flag", "description": "Detects integer overflows, bit-shifting out of bounds, and invalid pointer casting." },
+            { "name": "-fsanitize=thread (TSan)", "type": "Flag", "description": "Mathematically proves the existence of Data Races across multiple pthreads." }
+          ],
+          "returns": { "type": "N/A", "description": "If a violation occurs, the binary instantly aborts and prints a colorized, detailed Stack Trace." },
+          "complexity": "ASan incurs ~2x slowdown. TSan incurs ~5x to 15x slowdown. UBSan incurs < 10% overhead.",
+          "exceptions": "You CANNOT use ASan and TSan at the same time. They map shadow memory differently and will conflict fatally during initialization."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day36-t2-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day36-t2-txt-mechanics",
+          "content": "<p>Consider <strong>ThreadSanitizer (TSan)</strong>. When you compile with <code>-fsanitize=thread</code>, the compiler completely rewrites your binary's execution paths. For every single memory read or write instruction in your C code, TSan injects a call to its internal runtime library. It tracks the physical memory address, the active Thread ID, and the exact clock cycle of the access. If Thread 1 writes to address <code>0xAA</code>, and Thread 2 writes to <code>0xAA</code> without a Mutex or Atomic instruction mathematically separating them chronologically, TSan detects the overlapping timelines and violently terminates the program. It does not wait for the data race to cause a visible application crash; it detects the <em>potential</em> for a crash mathematically.</p>"
+        },
+        {
+          "type": "callout",
+          "block_id": "day36-t2-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Sanitizers in CI/CD:</strong> You should never deploy a binary compiled with <code>-fsanitize=address</code> to a live production server. It doubles CPU/RAM consumption and allows hackers to easily DoS (Denial of Service) your application by triggering safe aborts. However, your GitHub Actions or GitLab CI pipelines MUST execute your entire Unit Test suite against binaries compiled with ASan, UBSan, and TSan independently before any PR is merged.</li><li><strong>The -fno-omit-frame-pointer Mandate:</strong> Sanitizers rely entirely on generating accurate stack traces so you know exactly which line of code failed. Modern GCC aggressively omits the frame pointer to free up an extra register for math. You must compile with <code>-fno-omit-frame-pointer -g</code> so the <code>RBP</code> register remains intact, allowing the sanitizer to walk backward up the call stack perfectly upon crashing.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day36-t2-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day36-t2-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "What is the primary operational advantage of using AddressSanitizer (ASan) over Valgrind?",
+              "options": [
+                { "id": "t2-q1-a", "text": "ASan uses fewer compiler flags.", "is_correct": false, "explanation": "Flag quantity is irrelevant to operational capabilities." },
+                { "id": "t2-q1-b", "text": "ASan executes at near-native speeds (only ~2x slowdown) because the bounds-checking logic is natively compiled directly into the binary's assembly, whereas Valgrind requires full CPU simulation (causing up to 50x slowdown).", "is_correct": true, "explanation": "This speed allows ASan to be used on latency-sensitive targets like real-time engines and network stacks." },
+                { "id": "t2-q1-c", "text": "ASan can be deployed to production safely.", "is_correct": false, "explanation": "ASan is strictly for testing; it doubles memory usage and exposes DoS vectors." },
+                { "id": "t2-q1-d", "text": "ASan can detect logic errors in the code.", "is_correct": false, "explanation": "ASan only detects memory safety violations, not logical business flaws." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Interpreting ASan Red-Zone Shadow Memory Crash Reports",
+        "category": "Debugging",
+        "complexity": "Elite",
+        "standard": "AddressSanitizer",
+        "read_time": 30,
+        "prerequisites": ["day-36-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day36-t3-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day36-t3-txt-strategic-problem",
+          "content": "<p>A silent Out-of-Bounds read (like the infamous Heartbleed bug) does not crash standard C binaries. The CPU blindly reads adjacent memory and transmits it back to the attacker. Because there is no Segmentation Fault, the vulnerability remains hidden. To make these bugs violently visible, AddressSanitizer (ASan) physically restructures how the C runtime allocates memory. By surrounding all arrays with impenetrable \"poisoned\" memory walls, ASan turns silent reads into screaming, application-halting crash reports. But to fix the bug, a Staff Engineer must be able to read and interpret the complex geographical memory map ASan prints out to the terminal.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day36-t3-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day36-t3-txt-mechanics",
+          "content": "<p><strong>AddressSanitizer (ASan)</strong> utilizes a concept called <strong>Shadow Memory</strong>. For every 8 bytes of real application RAM, ASan reserves exactly 1 byte of Shadow Memory to track its state. When you call <code>malloc(10)</code>, ASan allocates your memory, but it forcefully injects buffer padding around it called <strong>Redzones</strong>. It marks the Shadow Memory corresponding to those Redzones as 'Poisoned'. When your C code attempts to access array index 11, the compiler-injected ASan assembly intercepts the CPU instruction, checks the Shadow Memory mapping, sees that the corresponding byte is poisoned, and instantly aborts the program before the illegal read actually happens.</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day36-t3-svg-mechanics",
+          "caption": "AddressSanitizer (ASan) Shadow Memory and Redzones.",
+          "alt_text": "Visual showing an allocated buffer surrounded by Redzones. An Out-of-Bounds read hits the Redzone and triggers an ASan abort.",
+          "svg_code": "<svg viewBox='0 0 600 250' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='250' fill='var(--bg-card)'/><g transform='translate(50, 40)'><rect x='0' y='0' width='500' height='60' fill='none' stroke='var(--border-light)' stroke-width='2' rx='4'/><text x='250' y='-10' fill='var(--text-secondary)' font-family='monospace' font-weight='bold' text-anchor='middle'>Application Memory (Heap)</text><rect x='20' y='15' width='100' height='30' fill='rgba(239, 68, 68, 0.2)' stroke='var(--danger-border)'/><text x='70' y='33' fill='var(--danger-border)' font-family='monospace' font-size='10' text-anchor='middle'>Redzone</text><rect x='120' y='15' width='260' height='30' fill='rgba(16, 185, 129, 0.2)' stroke='var(--success-border)'/><text x='250' y='33' fill='var(--success-border)' font-family='monospace' font-size='12' text-anchor='middle'>Valid Allocation (malloc)</text><rect x='380' y='15' width='100' height='30' fill='rgba(239, 68, 68, 0.2)' stroke='var(--danger-border)'/><text x='430' y='33' fill='var(--danger-border)' font-family='monospace' font-size='10' text-anchor='middle'>Redzone</text></g><g transform='translate(50, 150)'><rect x='0' y='0' width='500' height='60' fill='rgba(245, 158, 11, 0.1)' stroke='var(--warning-border)' stroke-width='2' rx='4'/><text x='250' y='-10' fill='var(--warning-border)' font-family='monospace' font-weight='bold' text-anchor='middle'>Shadow Memory (1 Byte per 8 Bytes)</text><rect x='20' y='15' width='100' height='30' fill='var(--bg-hover)'/><text x='70' y='33' fill='var(--danger-border)' font-family='monospace' font-size='10' font-weight='bold' text-anchor='middle'>Poisoned</text><rect x='120' y='15' width='260' height='30' fill='var(--bg-hover)'/><text x='250' y='33' fill='var(--success-border)' font-family='monospace' font-size='10' font-weight='bold' text-anchor='middle'>Clean (Valid)</text><rect x='380' y='15' width='100' height='30' fill='var(--bg-hover)'/><text x='430' y='33' fill='var(--danger-border)' font-family='monospace' font-size='10' font-weight='bold' text-anchor='middle'>Poisoned</text></g><path d='M360 80 Q 400 110 400 140' stroke='var(--danger-border)' stroke-width='3' marker-end='url(#arrow-danger)' stroke-dasharray='4,4'/><text x='470' y='110' fill='var(--danger-border)' font-family='monospace' font-size='10' font-weight='bold' text-anchor='middle'>OOB Read Trapped!</text><defs><marker id='arrow-danger' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--danger-border)'/></marker></defs></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day36-t3-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day36-t3-txt-debug-intro",
+          "content": "<p>Analyze the following ASan crash report. Identify the exact vulnerability and sequence of events.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day36-t3-cb-debug-lab",
+          "language": "text",
+          "header": "Vulnerable Target: The ASan Terminal Output",
+          "code": "=================================================================\n==12345==ERROR: AddressSanitizer: heap-use-after-free on address 0x602000000010 \nREAD of size 4 at 0x602000000010 thread T0\n    #0 0x401186 in print_node /src/main.c:22\n    #1 0x40129a in main /src/main.c:45\n\n0x602000000010 is located 0 bytes inside of 16-byte region [0x602000000010,0x602000000020)\nfreed by thread T0 here:\n    #0 0x7f8a9a8b6b40 in free (/lib64/libasan.so.5+0xe8b40)\n    #1 0x401275 in main /src/main.c:40\n\npreviously allocated by thread T0 here:\n    #0 0x7f8a9a8b7138 in malloc (/lib64/libasan.so.5+0xe9138)\n    #1 0x401250 in main /src/main.c:35\n================================================================="
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day36-t3-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "The ASan report is the ultimate debugging tool. It tells you exactly what happened geographically and chronologically. A `heap-use-after-free` occurred because the C code attempted a `READ` of 4 bytes on line 22 inside the `print_node` function. ASan tracked the entire lifecycle of that exact memory address: it proves the memory was previously `freed` on line 40, and originally `allocated` on line 35. The engineer freed a Node pointer, failed to nullify it, and then passed it into the `print_node` function 5 lines later. Without ASan, this might have silently printed garbage data or allowed a hacker to hijack execution. With ASan, it is a hard, un-ignorable crash leading you directly to the offending line." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day36-t3-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day36-t3-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "How does AddressSanitizer (ASan) physically trap Out-of-Bounds memory accesses?",
+              "options": [
+                { "id": "t3-q1-a", "text": "It parses the C syntax and prevents the array index from exceeding its declared size.", "is_correct": false, "explanation": "ASan works dynamically at runtime on physical memory, not purely syntactically." },
+                { "id": "t3-q1-b", "text": "It surrounds every dynamic and stack allocation with compiler-injected 'Redzones'. It maps these Redzones to 'Poisoned' Shadow Memory bytes. Whenever a pointer reads or writes, ASan checks the shadow map; if the target is Poisoned, it aborts instantly.", "is_correct": true, "explanation": "This mechanism turns silent buffer overflows into loud, fatal crashes." },
+                { "id": "t3-q1-c", "text": "It uses the OS Virtual Memory Manager to place each array on its own isolated 4KB page.", "is_correct": false, "explanation": "That describes PageHeap, which uses far more memory than ASan's byte-level granularity." },
+                { "id": "t3-q1-d", "text": "It encrypts the pointers using XOR masking.", "is_correct": false, "explanation": "Pointer encryption does not prevent basic bounds violations." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

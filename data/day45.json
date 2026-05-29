@@ -1,0 +1,291 @@
+{
+  "day": 45,
+  "module": "17: Dynamic Execution & Sandboxing",
+  "topics": [
+    {
+      "header_hub": {
+        "title": "JIT Compilation and W^X Executable Memory",
+        "category": "Architecture",
+        "complexity": "Elite",
+        "standard": "POSIX / x86_64",
+        "read_time": 35,
+        "prerequisites": ["day-24-topic-1", "day-42-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day45-t1-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day45-t1-txt-strategic-problem",
+          "content": "<p>Languages like JavaScript, Python, and Lua are interpreted. An interpreter reads the source code string, evaluates it, and executes corresponding C functions. This abstraction makes interpreted languages roughly 10x to 100x slower than compiled C code. To close this gap, engines like Google's V8 (Chrome) and the JVM utilize <strong>Just-In-Time (JIT) Compilation</strong>. Instead of interpreting the code, the engine literally acts as a compiler <em>at runtime</em>. It translates the JavaScript logic into raw, native x86_64 machine code, writes that machine code into RAM, and instructs the CPU to execute it. But how does a C program write code to RAM and execute it, considering the OS explicitly forbids executing the Heap to prevent Buffer Overflows? We must master the <code>PROT_EXEC</code> memory flags and the strict <strong>W^X (Write XOR Execute)</strong> security paradigm.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day45-t1-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day45-t1-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;sys/mman.h&gt;</span>\n<span class=\"syntax-kw\">void</span> *mem = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);\n<span class=\"syntax-kw\">int</span> mprotect(<span class=\"syntax-kw\">void</span> *addr, <span class=\"syntax-ty\">size_t</span> len, <span class=\"syntax-kw\">int</span> prot);",
+          "description": "The POSIX interface for allocating memory and dynamically mutating its execution permissions.",
+          "parameters": [
+            { "name": "PROT_EXEC", "type": "Flag", "description": "Instructs the hardware Memory Management Unit (MMU) to allow the Instruction Pointer (RIP) to jump into this memory page." },
+            { "name": "mprotect", "type": "Syscall", "description": "Modifies the access protections of a mapped memory page after it has been allocated." },
+            { "name": "addr", "type": "void *", "description": "The pointer to the memory region. MUST be perfectly aligned to a Page Boundary (e.g., 4096 bytes)." }
+          ],
+          "returns": { "type": "int", "description": "mprotect returns 0 on success, -1 on failure." },
+          "complexity": "mprotect forces the OS to flush hardware TLB caches globally across CPU cores, making it a high-latency syscall.",
+          "exceptions": "If SELinux or AppArmor is enforcing strict W^X, requesting PROT_WRITE | PROT_EXEC simultaneously will be instantly rejected."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day45-t1-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day45-t1-txt-mechanics",
+          "content": "<p>Modern Operating Systems enforce <strong>Data Execution Prevention (DEP)</strong> via the hardware NX (No-eXecute) bit. Memory is either Writable (like the Heap/Stack) OR Executable (like the <code>.text</code> segment). It can never be both simultaneously. This is the <strong>W^X</strong> rule. To build a JIT compiler, you must allocate memory as <code>PROT_READ | PROT_WRITE</code>. You then write your dynamically generated hexadecimal machine code (opcodes) into that memory buffer. Finally, you execute <code>mprotect</code> to violently revoke the <code>PROT_WRITE</code> permission and apply the <code>PROT_EXEC</code> permission. The memory becomes read-only and executable. You then cast the memory address to a C function pointer and execute it.</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day45-t1-svg-mechanics",
+          "caption": "The W^X Lifecycle of JIT Executable Memory.",
+          "alt_text": "Visual showing memory transitioning from Read/Write (Payload Injection) to Read/Execute (CPU Execution) via the mprotect syscall.",
+          "svg_code": "<svg viewBox='0 0 600 250' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='250' fill='var(--bg-card)'/><g transform='translate(20, 20)'><rect x='0' y='0' width='160' height='200' fill='rgba(245, 158, 11, 0.1)' stroke='var(--warning-border)' stroke-width='2' rx='4'/><text x='80' y='25' fill='var(--warning-border)' font-family='monospace' font-weight='bold' text-anchor='middle'>Phase 1: Write</text><rect x='10' y='40' width='140' height='30' fill='var(--bg-hover)'/><text x='80' y='60' fill='var(--text-primary)' font-family='monospace' font-size='10' text-anchor='middle'>PROT_READ | PROT_WRITE</text><rect x='10' y='100' width='140' height='60' fill='rgba(245, 158, 11, 0.2)' stroke='var(--warning-border)'/><text x='80' y='125' fill='var(--warning-border)' font-family='monospace' font-size='12' font-weight='bold' text-anchor='middle'>memcpy(opcodes)</text><text x='80' y='145' fill='var(--text-secondary)' font-family='monospace' font-size='10' text-anchor='middle'>(Inject Machine Code)</text></g><g transform='translate(220, 90)'><rect x='0' y='0' width='160' height='40' fill='rgba(14, 165, 233, 0.2)' stroke='var(--accent)' stroke-width='2' rx='4'/><text x='80' y='25' fill='var(--accent)' font-family='monospace' font-weight='bold' text-anchor='middle'>mprotect()</text></g><path d='M 180 110 L 220 110' stroke='var(--accent)' stroke-width='3' marker-end='url(#arrow-acc)'/><path d='M 380 110 L 420 110' stroke='var(--accent)' stroke-width='3' marker-end='url(#arrow-acc)'/><g transform='translate(420, 20)'><rect x='0' y='0' width='160' height='200' fill='rgba(16, 185, 129, 0.1)' stroke='var(--success-border)' stroke-width='2' rx='4'/><text x='80' y='25' fill='var(--success-border)' font-family='monospace' font-weight='bold' text-anchor='middle'>Phase 2: Execute</text><rect x='10' y='40' width='140' height='30' fill='var(--bg-hover)'/><text x='80' y='60' fill='var(--text-primary)' font-family='monospace' font-size='10' text-anchor='middle'>PROT_READ | PROT_EXEC</text><rect x='10' y='100' width='140' height='60' fill='rgba(16, 185, 129, 0.2)' stroke='var(--success-border)'/><text x='80' y='125' fill='var(--success-border)' font-family='monospace' font-size='12' font-weight='bold' text-anchor='middle'>func_ptr()</text><text x='80' y='145' fill='var(--text-secondary)' font-family='monospace' font-size='10' text-anchor='middle'>(CPU Hardware Jump)</text></g><defs><marker id='arrow-acc' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--accent)'/></marker></defs></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day45-t1-sec-trench-story",
+          "title": "Production Trench Story"
+        },
+        {
+          "type": "callout",
+          "block_id": "day45-t1-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage: The JIT Spray Attack",
+          "content": "<p>A popular web browser implemented an ultra-fast JavaScript JIT compiler. To maximize performance, they allocated massive memory pages as <code>PROT_READ | PROT_WRITE | PROT_EXEC</code> simultaneously, bypassing the expensive <code>mprotect</code> toggling step. Attackers realized this memory was a goldmine. They wrote a malicious JavaScript script that instantiated millions of innocuous integers (e.g., <code>0x90909090</code>). The JIT compiler dutifully translated these variables into executable RAM. But <code>0x90</code> in x86 Assembly is the <code>NOP</code> (No Operation) instruction! By controlling the data the JIT compiler wrote to the executable page, the attackers tricked the browser into writing massive NOP Sleds and Shellcode perfectly into active CPU memory. A simple buffer overflow then hijacked the Instruction Pointer, pointing it into the JIT region. This vulnerability vector—<strong>JIT Spraying</strong>—forced the entire software industry to mandate strict W^X enforcement natively in the OS Kernel.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day45-t1-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day45-t1-cb-jit",
+          "language": "c",
+          "header": "A Bare-Metal JIT Compiler",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;string.h&gt;\n#include &lt;sys/mman.h&gt;\n#include &lt;unistd.h&gt;\n\nint main() {\n    // 1. Allocate Page-Aligned Memory\n    // Using mmap instead of malloc because mprotect requires strict 4096-byte boundaries.\n    size_t page_size = sysconf(_SC_PAGESIZE);\n    void *mem = mmap(NULL, page_size, PROT_READ | PROT_WRITE, \n                     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);\n\n    // 2. The Machine Code Payload (x86_64 Assembly)\n    // mov eax, 42  (0xB8 0x2A 0x00 0x00 0x00)\n    // ret          (0xC3)\n    unsigned char jitted_opcodes[] = { \n        0xB8, 0x2A, 0x00, 0x00, 0x00, \n        0xC3 \n    };\n\n    // 3. Inject the payload into the Writable RAM\n    memcpy(mem, jitted_opcodes, sizeof(jitted_opcodes));\n\n    // 4. The W^X Transition\n    // Strip Write permissions, grant Execute permissions.\n    if (mprotect(mem, page_size, PROT_READ | PROT_EXEC) == -1) {\n        perror(\"mprotect failed\");\n        return 1;\n    }\n\n    // 5. Execution\n    // Cast the raw memory address into a standard C function pointer\n    int (*dynamic_func)() = mem;\n    \n    // The CPU physically jumps to the Heap and executes our opcodes\n    int result = dynamic_func();\n    \n    printf(\"JIT Function Returned: %d\\n\", result);\n\n    // Cleanup\n    munmap(mem, page_size);\n    return 0;\n}"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day45-t1-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day45-t1-txt-debug-intro",
+          "content": "<p>Analyze the following broken snippet. Find the vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day45-t1-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The I-Cache Paradox",
+          "code": "#include &lt;sys/mman.h&gt;\n#include &lt;string.h&gt;\n\nvoid run_jit_payload(void *mem, unsigned char *new_opcodes, int size) {\n    // Engineer needs to update the JIT code dynamically during runtime\n    mprotect(mem, 4096, PROT_READ | PROT_WRITE);\n    \n    // Overwrite old opcodes with new opcodes\n    memcpy(mem, new_opcodes, size);\n    \n    // Switch back to Executable\n    mprotect(mem, 4096, PROT_READ | PROT_EXEC);\n    \n    // Execute\n    int (*func)() = mem;\n    \n    // BUG: On ARM processors, this randomly executes the OLD opcodes!\n    func();\n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day45-t1-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "Modern CPUs have two entirely separate L1 caches: The D-Cache (Data) and the I-Cache (Instructions). When `memcpy` writes the new opcodes, it writes them into the D-Cache. When `func()` executes, the CPU pulls instructions from the I-Cache. On x86 processors, the hardware secretly monitors the D-Cache and automatically flushes the I-Cache if it detects a collision. ARM processors do NOT. The ARM I-Cache is utterly oblivious to the `memcpy`. It executes the stale instructions remaining in the I-Cache, causing catastrophic state desynchronization. Fix: On ARM and PowerPC, you MUST explicitly invoke the GCC builtin `__builtin___clear_cache(mem, mem + size);` before jumping to dynamically modified executable memory." }
+          ]
+        },
+        {
+          "type": "callout",
+          "block_id": "day45-t1-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Strict Page Alignment:</strong> The <code>mprotect</code> syscall does not operate on bytes; it operates strictly on Hardware Pages (typically 4096 bytes). If you pass an address to <code>mprotect</code> that is not perfectly aligned to a multiple of the page size, the syscall instantly fails with <code>EINVAL</code>. This is why <code>malloc</code> cannot be used for JIT buffers.</li><li><strong>Dual-Mapping for Hot Reloading:</strong> Toggling <code>mprotect</code> causes heavy OS overhead. Elite JIT compilers (like V8) bypass this by calling <code>mmap</code> with <code>MAP_SHARED</code> over a hidden file descriptor, mapping the <em>exact same physical RAM</em> twice into the Virtual Address space. Map A is permanently <code>PROT_READ | PROT_WRITE</code>. Map B is permanently <code>PROT_READ | PROT_EXEC</code>. The JIT compiler writes to Map A, and the application instantly executes Map B without a single <code>mprotect</code> syscall.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day45-t1-sec-qa",
+          "title": "Mastery Q&A"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day45-t1-qa-mastery",
+          "items": [
+            { "question": "If JIT is so fast, why not JIT compile everything?", "answer": "JIT compilation is incredibly CPU-intensive. Evaluating Javascript syntax and compiling it to optimal Assembly at runtime consumes massive amounts of RAM and CPU cycles. This is why web browsers consume gigabytes of memory. C applications compile Ahead-Of-Time (AOT), paying the compilation tax on the developer's machine, delivering a tiny, hyper-optimized binary to the user." },
+            { "question": "Can I use JIT to optimize regex parsing?", "answer": "Yes! This is standard industry practice. High-performance regex engines (like PCRE or Google's RE2) feature JIT compilation. They analyze your regex string `^[0-9]+$` and dynamically generate an exact Assembly function perfectly tuned for that specific state machine, accelerating pattern matching by over 1000% compared to a generic loop parser." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day45-t1-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day45-t1-quiz-mastery",
+          "time_limit_seconds": 375,
+          "questions": [
+            {
+              "question": "What is the primary security objective of the W^X (Write XOR Execute) memory policy?",
+              "options": [
+                { "id": "t1-q1-a", "text": "It prevents memory from being swapped to the hard drive.", "is_correct": false, "explanation": "Swapping is handled by the VFS and `mlock`, not execution policies." },
+                { "id": "t1-q1-b", "text": "It guarantees that a memory page can be Writable or Executable, but never both simultaneously. This mathematically prevents an attacker from injecting malicious shellcode into a data buffer and instantly tricking the CPU into executing it.", "is_correct": true, "explanation": "W^X is the foundational OS mitigation against Buffer Overflow execution." },
+                { "id": "t1-q1-c", "text": "It prevents threads from writing to the same memory simultaneously.", "is_correct": false, "explanation": "Thread synchronization requires Mutexes or Atomics." },
+                { "id": "t1-q1-d", "text": "It encrypts the RAM.", "is_correct": false, "explanation": "Memory execution policies do not alter data." }
+              ]
+            },
+            {
+              "question": "Why must an application use `mmap()` instead of standard `malloc()` when allocating memory for a JIT Compiler?",
+              "options": [
+                { "id": "t1-q2-a", "text": "`malloc` is too slow.", "is_correct": false, "explanation": "Speed of allocation is irrelevant here." },
+                { "id": "t1-q2-b", "text": "The `mprotect()` system call strictly requires the target memory address to be perfectly aligned to OS Page boundaries (e.g., a multiple of 4096). `malloc` only guarantees 16-byte alignment, causing `mprotect` to violently fail.", "is_correct": true, "explanation": "Only `mmap` or `posix_memalign` provides the page-level architectural boundaries required for memory protection hardware." },
+                { "id": "t1-q2-c", "text": "`malloc` allocates memory in Kernel Space.", "is_correct": false, "explanation": "`malloc` operates in User Space." },
+                { "id": "t1-q2-d", "text": "`malloc` automatically sets the NX bit.", "is_correct": false, "explanation": "The OS sets the NX bit on the entire Heap by default." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Application Sandboxing via Seccomp-BPF",
+        "category": "Security",
+        "complexity": "Elite",
+        "standard": "Linux ABI",
+        "read_time": 30,
+        "prerequisites": ["day-38-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day45-t2-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day45-t2-txt-strategic-problem",
+          "content": "<p>We have compiled our C binary with ASLR, Stack Canaries, and strict W^X memory. Yet, if an attacker strings together a perfect ROP chain (Day 42), they can execute a <code>system(\"/bin/sh\")</code> command using our application's privileges. If our application is running as a standard OS user, the attacker gets a shell. We must implement a \"Defense in Depth\" mechanism that mathematically prevents the attacker from escalating, <em>even if they gain complete control of the C instruction pointer</em>. To achieve this, the C application must proactively strip away its own OS privileges at runtime, commanding the Linux Kernel to instantly execute the application if it ever attempts a forbidden action. This mechanism is <strong>Seccomp (Secure Computing Mode)</strong>.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day45-t2-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day45-t2-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;seccomp.h&gt;</span>\n\n<span class=\"syntax-ty\">scmp_filter_ctx</span> ctx = seccomp_init(SCMP_ACT_KILL);\nseccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(read), 0);\nseccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(write), 0);\nseccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(exit_group), 0);\n\nseccomp_load(ctx);",
+          "description": "The libseccomp API used to build and install BPF system call filters into the Linux Kernel.",
+          "parameters": [
+            { "name": "SCMP_ACT_KILL", "type": "Default Action", "description": "The foundational security stance. Instructs the Kernel to instantly send SIGSYS (aborting the process) for ANY system call not explicitly whitelisted." },
+            { "name": "seccomp_rule_add", "type": "Function", "description": "Whitelists a specific system call (e.g., read, write) allowing the application to function normally." },
+            { "name": "seccomp_load", "type": "Function", "description": "Compiles the rules into BPF bytecode and permanently attaches it to the current process's OS Task Struct." }
+          ],
+          "returns": { "type": "int", "description": "0 on success. Negative error codes on failure." },
+          "complexity": "Imposes a microsecond parsing delay on every single syscall executed by the application.",
+          "exceptions": "Once loaded, a Seccomp filter can NEVER be removed or bypassed. It is mathematically permanent until the process dies."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day45-t2-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day45-t2-txt-mechanics",
+          "content": "<p>When you execute <code>seccomp_load()</code>, the C library compiles your rules into eBPF bytecode (the same technology from Day 38) and pushes it to the Kernel via the <code>prctl()</code> syscall. The Kernel attaches this bytecode to your process. Every time your C program executes a <code>syscall</code> assembly instruction, the CPU traps into Ring 0. Before the Kernel actually routes the syscall to the hardware, it pauses and executes your eBPF bytecode. The bytecode examines the Syscall Number (stored in the <code>rax</code> register). If the number represents <code>execve</code> (the syscall used to spawn <code>/bin/sh</code>) and your default rule is <code>SCMP_ACT_KILL</code>, the OS Kernel violently terminates your process right there. The attacker's ROP chain is instantly neutralized.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day45-t2-sec-trench-story",
+          "title": "Production Trench Story"
+        },
+        {
+          "type": "callout",
+          "block_id": "day45-t2-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage: The Docker Privilege Escalation",
+          "content": "<p>A company ran a cluster of Docker containers orchestrating video rendering. To allow the container to access specific GPU drivers, an engineer started the container in \"Privileged Mode\" (<code>--privileged</code>). This flag implicitly disabled the default Docker Seccomp profile. A vulnerability in the video parsing library allowed a hacker to gain Remote Code Execution. Because Seccomp was disabled, the attacker simply executed the <code>mount</code> and <code>unshare</code> system calls, escaped the Docker namespace isolation, mounted the Host Node's root filesystem, and deployed ransomware across the entire physical server fleet. If Seccomp had been active, the Kernel would have instantly killed the rendering process the millisecond the attacker attempted the unauthorized <code>mount</code> syscall, entirely neutralizing the breach.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day45-t2-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day45-t2-cb-seccomp",
+          "language": "c",
+          "header": "Locking Down a Daemon Process",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;stdlib.h&gt;\n#include &lt;unistd.h&gt;\n#include &lt;seccomp.h&gt;\n\nvoid apply_security_sandbox() {\n    // 1. Initialize filter: Default action is to KILL the process\n    scmp_filter_ctx ctx = seccomp_init(SCMP_ACT_KILL);\n    if (ctx == NULL) exit(EXIT_FAILURE);\n\n    // 2. Allow exactly the syscalls required for normal operation.\n    // A web worker only needs to read sockets, write sockets, and close them.\n    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(read), 0);\n    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(write), 0);\n    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(close), 0);\n    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(exit_group), 0);\n    \n    // Elite addition: Only allow 'open' if it is strictly READ-ONLY.\n    // This uses BPF argument filtering to inspect the specific flags passed to open().\n    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(openat), 1,\n                     SCMP_CMP(2, SCMP_CMP_EQ, O_RDONLY));\n\n    // 3. Load the BPF bytecode into the Kernel\n    if (seccomp_load(ctx) < 0) {\n        perror(\"Seccomp load failed\");\n        exit(EXIT_FAILURE);\n    }\n    \n    seccomp_release(ctx); // Free user-space config memory\n    printf(\"Sandbox active. Process is now mathematically contained.\\n\");\n}\n\nint main() {\n    apply_security_sandbox();\n    \n    // Normal logic works flawlessly\n    printf(\"Normal execution.\\n\");\n    \n    // DANGER: An attacker hijacks the Instruction Pointer and attempts to spawn a shell.\n    // Because 'execve' is not whitelisted, the OS Kernel intercepts this \n    // and violently terminates the process with SIGSYS (Bad System Call).\n    system(\"/bin/sh\");\n    \n    return 0;\n}"
+        },
+        {
+          "type": "callout",
+          "block_id": "day45-t2-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Late-Stage Activation:</strong> A C application usually requires hundreds of system calls to boot up (<code>mmap</code> for dynamic linking, <code>open</code> for config files). If you load the Seccomp filter at the very beginning of <code>main()</code>, the application will instantly kill itself trying to boot. You MUST execute initialization, open critical Database/Log File Descriptors, and <em>then</em> activate Seccomp, restricting the process strictly to <code>read</code> and <code>write</code> for the remainder of its lifecycle.</li><li><strong>The Trap Action:</strong> Instead of <code>SCMP_ACT_KILL</code>, elite systems use <code>SCMP_ACT_TRAP</code>. This instructs the Kernel to send a <code>SIGSYS</code> signal to the application. You configure a Signal Handler (Day 27) to catch <code>SIGSYS</code>, log an emergency stack trace to the central monitoring server containing the exact syscall the hacker attempted, and <em>then</em> safely execute <code>exit(1)</code>.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day45-t2-sec-qa",
+          "title": "Mastery Q&A"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day45-t2-qa-mastery",
+          "items": [
+            { "question": "Does Seccomp prevent Buffer Overflows?", "answer": "No. Seccomp has absolutely no visibility into User Space memory. An attacker can still overflow a buffer and scramble internal variables. Seccomp only prevents the attacker from interacting with the Operating System (e.g., launching a shell, opening files, spawning a network shell) after they have achieved execution." },
+            { "question": "Can an attacker simply disable the Seccomp filter once they gain control?", "answer": "No. The Linux Kernel architecture mathematically forbids the removal of a Seccomp filter once it is applied via `prctl`. The only way to escape it is if the process dies." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day45-t2-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day45-t2-quiz-mastery",
+          "time_limit_seconds": 375,
+          "questions": [
+            {
+              "question": "What is the primary architectural purpose of utilizing Seccomp-BPF in a C application?",
+              "options": [
+                { "id": "t2-q1-a", "text": "It encrypts the payload of network sockets.", "is_correct": false, "explanation": "Encryption is handled by TLS, not Seccomp." },
+                { "id": "t2-q1-b", "text": "It implements Defense in Depth by whitelisting strict System Calls. Even if an attacker achieves full Remote Code Execution via a ROP chain, they are physically prevented by the OS from executing destructive actions like `execve(/bin/sh)`.", "is_correct": true, "explanation": "It contains the blast radius of a successful exploit." },
+                { "id": "t2-q1-c", "text": "It patches buffer overflows dynamically at runtime.", "is_correct": false, "explanation": "It does not protect memory; it restricts system privileges." },
+                { "id": "t2-q1-d", "text": "It bypasses the System Call context switch.", "is_correct": false, "explanation": "io_uring does this; Seccomp actually adds slight overhead to syscalls." }
+              ]
+            },
+            {
+              "question": "Why must Seccomp filters typically be loaded deeply into the execution lifecycle of a daemon, rather than immediately at the start of `main()`?",
+              "options": [
+                { "id": "t2-q2-a", "text": "Because Seccomp requires root privileges to initialize.", "is_correct": false, "explanation": "It can be invoked by standard users." },
+                { "id": "t2-q2-b", "text": "Because the `libseccomp` library must compile the BPF bytecode using the GPU.", "is_correct": false, "explanation": "It compiles in the CPU." },
+                { "id": "t2-q2-c", "text": "Applications require broad OS privileges during initialization to dynamically link libraries (`mmap`), parse configuration files (`open`), and bind ports (`bind`). If a strict whitelist is applied at boot, the application will violently terminate itself while attempting to initialize.", "is_correct": true, "explanation": "The security sandbox must only be locked after the process reaches its steady, predictable I/O state." },
+                { "id": "t2-q2-d", "text": "Because the filter requires the application to fork first.", "is_correct": false, "explanation": "It can be applied to the main process directly." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

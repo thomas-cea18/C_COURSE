@@ -1,0 +1,252 @@
+{
+  "day": 25,
+  "module": "7: POSIX Systems & Process Control",
+  "topics": [
+    {
+      "header_hub": {
+        "title": "The Mechanics of fork() and Copy-on-Write (CoW)",
+        "category": "Architecture",
+        "complexity": "Advanced",
+        "standard": "POSIX",
+        "read_time": 25,
+        "prerequisites": ["day-5-topic-1", "day-24-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day25-t1-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day25-t1-txt-strategic-problem",
+          "content": "<p>In UNIX, you cannot simply ask the Kernel to \"create a new process from scratch.\" The only way to create a new process is to <strong>clone an existing one</strong>. This is achieved via the <code>fork()</code> system call. When a Parent process calls <code>fork()</code>, the Kernel duplicates its entire Virtual Memory space—Heap, Stack, Data, and Text segments—creating an identical Child process. However, if the Parent process consumes 2GB of RAM, physically copying 2GB of RAM to the Child would take milliseconds, utterly destroying system performance and instantly exhausting memory. To solve this, the Kernel utilizes a brilliant hardware trick: <strong>Copy-on-Write (CoW)</strong>.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day25-t1-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day25-t1-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;sys/types.h&gt;</span>\n<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;unistd.h&gt;</span>\n\n<span class=\"syntax-ty\">pid_t</span> pid = fork();",
+          "description": "The foundational POSIX system call to duplicate the current process.",
+          "parameters": [
+            { "name": "None", "type": "void", "description": "fork() takes no arguments." }
+          ],
+          "returns": { "type": "pid_t", "description": "Returns -1 on failure. Returns 0 to the newly created Child. Returns the Child's PID (e.g., 1045) to the Parent." },
+          "complexity": "O(1) logical duplication via MMU page manipulation, avoiding O(N) physical memory copying.",
+          "exceptions": "Fails with EAGAIN if the system encounters a strict limit on the number of processes (ulimit or PID exhaustion)."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day25-t1-sec-mechanics",
+          "title": "Internal Mechanics: Copy-on-Write (CoW)"
+        },
+        {
+          "type": "text",
+          "block_id": "day25-t1-txt-mechanics",
+          "content": "<p>When <code>fork()</code> executes, the OS Kernel copies the <strong>Page Tables</strong> of the Parent, not the physical RAM. Both the Parent's Virtual Memory and the Child's Virtual Memory are mathematically pointed to the exact same physical RAM chips. Crucially, the Kernel marks all of these shared pages as <strong>Read-Only</strong>. Both processes can read variables flawlessly. However, the exact microsecond either the Parent or the Child attempts to <em>write</em> to a variable, the hardware MMU detects a write to a Read-Only page and fires a <strong>Page Fault</strong>. The Kernel halts the thread, physically copies that specific 4KB page of RAM to a new location, remaps the pointer, grants Write access, and resumes the thread. <code>fork()</code> is blazingly fast because physical copying is strictly deferred until it is absolutely necessary.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day25-t1-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day25-t1-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "How does Copy-on-Write (CoW) prevent `fork()` from crippling system performance when cloning massive processes?",
+              "options": [
+                { "id": "t1-q1-a", "text": "It compresses the child's memory in the background.", "is_correct": false, "explanation": "CoW does not involve compression; it uses physical memory sharing." },
+                { "id": "t1-q1-b", "text": "It creates a multi-threaded process instead of a true separate process.", "is_correct": false, "explanation": "`fork()` creates a true, isolated process. Threads are spawned via `pthread_create()`." },
+                { "id": "t1-q1-c", "text": "The Kernel maps both processes to the exact same physical RAM pages marked as Read-Only. Physical copying only occurs selectively, page-by-page, at the exact moment a process attempts to modify a variable.", "is_correct": true, "explanation": "This defers the overhead of copying until mutation is demanded, keeping process creation near-instantaneous." },
+                { "id": "t1-q1-d", "text": "It swaps the parent process to the hard drive while the child runs.", "is_correct": false, "explanation": "Both processes run concurrently in RAM." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Branching Parent vs Child Execution Paths",
+        "category": "Control Flow",
+        "complexity": "Intermediate",
+        "standard": "POSIX",
+        "read_time": 25,
+        "prerequisites": ["day-25-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day25-t2-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day25-t2-txt-strategic-problem",
+          "content": "<p>When <code>fork()</code> succeeds, you suddenly have two distinct processes. They share the same code, the same variables, and the same Instruction Pointer (PC). They both resume execution at the exact same line of code immediately following the <code>fork()</code> call. If you simply write <code>printf(\"Hello\\n\");</code>, both the Parent and the Child will print \"Hello\". To build meaningful architectures (like a web server spawning a worker for a new client), we must explicitly route the Parent and the Child into separate execution paths using the return value of <code>fork()</code>.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day25-t2-sec-mechanics",
+          "title": "Internal Mechanics: The Dual Return"
+        },
+        {
+          "type": "text",
+          "block_id": "day25-t2-txt-mechanics",
+          "content": "<p><code>fork()</code> is referred to as the function that is <strong>called once, but returns twice</strong>. Inside the Parent process, <code>fork()</code> returns the Process ID (PID) of the newly created Child. Inside the Child process, <code>fork()</code> returns exactly <code>0</code>. By assigning this return value to a <code>pid_t</code> variable and executing an <code>if/else</code> branch, we can segregate logic. The Parent takes the <code>if (pid &gt; 0)</code> branch, while the Child takes the <code>if (pid == 0)</code> branch.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day25-t2-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day25-t2-txt-debug-intro",
+          "content": "<p>Analyze the following broken snippet. Find the catastrophic vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day25-t2-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The Accidental Fork Bomb",
+          "code": "#include &lt;unistd.h&gt;\n#include &lt;stdio.h&gt;\n\nvoid spawn_workers() {\n    for (int i = 0; i < 4; i++) {\n        pid_t pid = fork();\n        \n        if (pid == 0) {\n            printf(\"Worker %d executing.\\n\", i);\n            // DANGER: The child does not exit after its work!\n        }\n    }\n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day25-t2-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "The engineer intended to spawn 4 workers. On loop `i=0`, Parent spawns Child 1. Because Child 1 does not call `exit()`, it hits the end of the `if` block, loops back to the top of the `for` loop, increments `i` to 1, and *it calls fork() itself*. The Parent and Child 1 both spawn children on `i=1`. Then 4 processes spawn children on `i=2`. Then 8 processes spawn children on `i=3`. The engineer accidentally created an exponential **Fork Bomb**, spanning 15 unintended processes. Fix: The child branch MUST conclude with an explicit `exit(0);` or `execve()` to prevent it from continuing the Parent's execution flow." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day25-t2-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day25-t2-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "How does a C application execute different logic for the Parent and the Child immediately after a `fork()` call?",
+              "options": [
+                { "id": "t2-q1-a", "text": "By evaluating the return value of `fork()`. It returns `0` inside the Child process, and the Child's PID (greater than 0) inside the Parent process.", "is_correct": true, "explanation": "This specific numeric mapping allows simple if/else routing to split the execution context." },
+                { "id": "t2-q1-b", "text": "By checking the `getpid()` function.", "is_correct": false, "explanation": "While `getpid()` differs between them, the return value of `fork()` is the standardized mechanism for routing." },
+                { "id": "t2-q1-c", "text": "By passing a callback function pointer into `fork()`.", "is_correct": false, "explanation": "`fork()` takes zero arguments. `pthread_create()` uses callback pointers." },
+                { "id": "t2-q1-d", "text": "The OS automatically puts the Parent to sleep.", "is_correct": false, "explanation": "Both processes run concurrently unless explicitly synchronized." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Overwriting the Process Image using execve()",
+        "category": "Systems Interfaces",
+        "complexity": "Advanced",
+        "standard": "POSIX",
+        "read_time": 30,
+        "prerequisites": ["day-25-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day25-t3-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day25-t3-txt-strategic-problem",
+          "content": "<p>We have successfully cloned our process using <code>fork()</code>. But a clone is just an identical copy of our current program. If we wrote a custom shell (like Bash), how do we make the child execute the <code>ls</code> command or the <code>grep</code> command? We must use the <strong><code>execve()</code></strong> system call. While <code>fork()</code> clones a process, <code>execve()</code> completely obliterates it and replaces it with a brand new binary. By combining <code>fork()</code> and <code>execve()</code>, we achieve the ultimate UNIX architectural pattern: Fork-Exec.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day25-t3-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day25-t3-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;unistd.h&gt;</span>\n\n<span class=\"syntax-kw\">int</span> execve(<span class=\"syntax-kw\">const char</span> *pathname, <span class=\"syntax-kw\">char *const</span> argv[], <span class=\"syntax-kw\">char *const</span> envp[]);",
+          "description": "Executes the program referred to by pathname. This function does not return on success.",
+          "parameters": [
+            { "name": "pathname", "type": "String", "description": "The absolute or relative path to the executable binary (e.g., \"/bin/ls\")." },
+            { "name": "argv", "type": "Array of Strings", "description": "The command-line arguments. The first element (argv[0]) should conventionally be the name of the program. MUST be NULL-terminated." },
+            { "name": "envp", "type": "Array of Strings", "description": "The environment variables (e.g., \"PATH=/usr/bin\"). MUST be NULL-terminated. Can pass 'environ' globally." }
+          ],
+          "returns": { "type": "int", "description": "It ONLY returns if an error occurred (returning -1 and setting errno). If successful, the calling program ceases to exist." },
+          "complexity": "Heavy OS Context switch to load a new ELF binary into RAM, wiping the previous MMU maps.",
+          "exceptions": "All open File Descriptors remain open across an execve() call unless explicitly flagged with O_CLOEXEC."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day25-t3-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day25-t3-txt-mechanics",
+          "content": "<p>When you call <code>execve()</code>, the Kernel halts the thread and violently overwrites the entire Virtual Memory space. It wipes the Heap, zeroes the Stack, and replaces the <code>.text</code> segment with the machine code from the new binary file on the hard drive. It then sets the CPU Instruction Pointer to the new binary's <code>main()</code> function. Because the process image is entirely obliterated, any C code written <em>after</em> the <code>execve()</code> call will mathematically never be executed unless <code>execve()</code> fails (e.g., the target file doesn't exist).</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day25-t3-svg-mechanics",
+          "caption": "A process tree diagram showing a Parent invoking fork() to clone itself, followed by the Child invoking execve() to load a new binary.",
+          "alt_text": "Visual showing Parent Process splitting into two identical processes via fork(), then the Child Process overwriting itself via execve() to become a new binary.",
+          "svg_code": "<svg viewBox='0 0 600 250' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='250' fill='var(--bg-card)'/><g transform='translate(50, 20)'><rect x='0' y='0' width='140' height='60' fill='none' stroke='var(--border-light)' stroke-width='2' rx='4'/><text x='70' y='25' fill='var(--text-primary)' font-family='monospace' font-weight='bold' text-anchor='middle'>Parent Process</text><rect x='10' y='35' width='120' height='15' fill='rgba(14, 165, 233, 0.2)' stroke='var(--accent)'/><text x='70' y='46' fill='var(--text-primary)' font-family='monospace' font-size='10' text-anchor='middle'>Binary: bash</text></g><path d='M120 80 L120 120' stroke='var(--warning-border)' stroke-width='3' marker-end='url(#arrow-warn)'/><text x='150' y='105' fill='var(--warning-border)' font-family='monospace' font-weight='bold' font-size='12'>fork()</text><g transform='translate(50, 140)'><rect x='0' y='0' width='140' height='60' fill='none' stroke='var(--border-light)' stroke-width='2' rx='4'/><text x='70' y='25' fill='var(--text-primary)' font-family='monospace' font-weight='bold' text-anchor='middle'>Child Process</text><rect x='10' y='35' width='120' height='15' fill='rgba(14, 165, 233, 0.2)' stroke='var(--accent)'/><text x='70' y='46' fill='var(--text-primary)' font-family='monospace' font-size='10' text-anchor='middle'>Binary: bash</text></g><path d='M190 170 L340 170' stroke='var(--danger-border)' stroke-width='3' marker-end='url(#arrow-danger)' stroke-dasharray='4,4'/><text x='265' y='160' fill='var(--danger-border)' font-family='monospace' font-weight='bold' font-size='12' text-anchor='middle'>execve(\"ls\")</text><g transform='translate(360, 140)'><rect x='0' y='0' width='140' height='60' fill='rgba(16, 185, 129, 0.1)' stroke='var(--success-border)' stroke-width='2' rx='4'/><text x='70' y='25' fill='var(--success-border)' font-family='monospace' font-weight='bold' text-anchor='middle'>Child Process</text><rect x='10' y='35' width='120' height='15' fill='rgba(16, 185, 129, 0.3)' stroke='var(--success-border)'/><text x='70' y='46' fill='var(--text-primary)' font-family='monospace' font-size='10' text-anchor='middle'>Binary: ls</text><text x='70' y='80' fill='var(--success-border)' font-family='monospace' font-size='10' text-anchor='middle'>Memory Overwritten!</text></g><defs><marker id='arrow-warn' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--warning-border)'/></marker><marker id='arrow-danger' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--danger-border)'/></marker></defs></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day25-t3-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day25-t3-cb-exec",
+          "language": "c",
+          "header": "Executing 'ls -la' via Fork-Exec (Assessment Check)",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;unistd.h&gt;\n#include &lt;stdlib.h&gt;\n\nextern char **environ; // Global environment pointer passed by OS\n\nint main() {\n    pid_t pid = fork();\n\n    if (pid < 0) {\n        perror(\"Fork failed\");\n        exit(1);\n    }\n\n    if (pid == 0) {\n        // CHILD PROCESS\n        // We set up the arguments exactly as the command line would.\n        // Note: argv[0] must be the program name, and it MUST end in NULL.\n        char *args[] = {\"ls\", \"-la\", NULL};\n        \n        // Replace the child's memory image with the 'ls' binary.\n        execve(\"/bin/ls\", args, environ);\n        \n        // If execve() succeeds, this line is mathematically unreachable.\n        // If we hit this line, execve() failed (e.g., path not found).\n        perror(\"Execve failed\");\n        exit(1);\n    } else {\n        // PARENT PROCESS\n        // The parent continues executing its own code.\n        printf(\"Spawned child %d to run ls.\\n\", pid);\n        \n        // (In Day 26, we will learn how to wait() for this child to finish)\n    }\n\n    return 0;\n}"
+        },
+        {
+          "type": "callout",
+          "block_id": "day25-t3-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>File Descriptor Inheritance:</strong> By default, if a Parent opens a file (e.g., `FD 4`) and then calls `fork()` + `execve()`, the new program will <em>inherit</em> `FD 4`. This is incredibly dangerous; a child process could maliciously read database connections belonging to the parent. You must explicitly attach the <code>O_CLOEXEC</code> (Close On Exec) flag when opening sensitive sockets or files to guarantee the Kernel forcefully severs them during an <code>execve</code> call.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day25-t3-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day25-t3-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "What happens to the C code placed immediately AFTER a successful `execve()` function call?",
+              "options": [
+                { "id": "t3-q1-a", "text": "It executes after the new binary finishes running.", "is_correct": false, "explanation": "`execve()` is not a standard function call; it is a permanent replacement." },
+                { "id": "t3-q1-b", "text": "It is mathematically unreachable. `execve()` violently overwrites the entire Virtual Memory space (including the .text code segment) with the new binary. The old instructions physically no longer exist in RAM.", "is_correct": true, "explanation": "If code after `execve()` executes, it absolutely means `execve()` failed." },
+                { "id": "t3-q1-c", "text": "It executes concurrently with the new binary in a separate thread.", "is_correct": false, "explanation": "The process itself is overwritten, no new threads are spawned." },
+                { "id": "t3-q1-d", "text": "It throws a compilation warning.", "is_correct": false, "explanation": "The compiler cannot know at compile-time if `execve()` will succeed or fail at runtime." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,300 @@
+{
+  "day": 40,
+  "module": "11: Bare Metal & Hardware Interfaces",
+  "topics": [
+    {
+      "header_hub": {
+        "title": "The Boot Sequence Without an OS (Reset Vectors and CRT0)",
+        "category": "Architecture",
+        "complexity": "Expert",
+        "standard": "ARM Cortex-M / Bare Metal",
+        "read_time": 30,
+        "prerequisites": ["day-5-topic-1", "day-14-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day40-t1-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day40-t1-txt-strategic-problem",
+          "content": "<p>As a C programmer, you are conditioned to believe that execution begins at <code>main()</code>. <strong>This is a fabricated illusion provided by the Operating System.</strong> When you power on a raw Microcontroller (like an ARM Cortex-M or a custom RISC-V chip), there is no Linux. There is no OS loader to set up your Virtual Memory, no Kernel to initialize your Stack, and absolutely no one to call <code>main()</code>. When electricity hits the silicon, the CPU blindly reads a hardcoded hardware address to figure out what to do next. To write Bare-Metal firmware, we must write the <strong>CRT0 (C Runtime Zero)</strong>—the foundational bootstrap code that physically prepares the hardware environments so that standard C code can actually survive execution.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day40-t1-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day40-t1-api-main",
+          "signature": "<span class=\"syntax-kw\">__attribute__</span>((section(<span class=\"syntax-str\">\".isr_vector\"</span>)))\n<span class=\"syntax-kw\">void</span> (* <span class=\"syntax-kw\">const</span> g_pfnVectors[])(<span class=\"syntax-kw\">void</span>) = {\n    (<span class=\"syntax-kw\">void</span> (*)(<span class=\"syntax-kw\">void</span>))(&amp;_estack),\n    Reset_Handler,\n    NMI_Handler,\n    HardFault_Handler\n};",
+          "description": "The Vector Table: The hardware-mandated array of function pointers that dictates how the CPU boots and handles catastrophic faults.",
+          "parameters": [
+            { "name": "_estack", "type": "Pointer", "description": "The physical memory address representing the top of the RAM. The CPU instantly loads this into the Stack Pointer (SP) hardware register." },
+            { "name": "Reset_Handler", "type": "Function Pointer", "description": "The very first C/Assembly function executed by the CPU. This is the true entry point of the firmware, not main()." },
+            { "name": ".isr_vector", "type": "Compiler Section", "description": "Forces the compiler to place this array at the absolute beginning of the compiled binary, so the hardware finds it at address 0x0." }
+          ],
+          "returns": { "type": "N/A", "description": "N/A" },
+          "complexity": "O(1) hardware boot latency. The CPU executes this table in hardware clock cycles.",
+          "exceptions": "If the Stack Pointer is invalid, the CPU instantly triggers a Hard Fault before executing a single instruction."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day40-t1-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day40-t1-txt-mechanics",
+          "content": "<p>On an ARM Cortex-M processor, the hardware is electrically wired to read address <code>0x00000000</code> the nanosecond it receives power. It expects the first 4 bytes to contain the Initial Stack Pointer. It expects the next 4 bytes to contain the memory address of the <strong>Reset Vector</strong> (the boot function). The CPU loads the Stack Pointer, loads the Reset Vector into the Instruction Pointer (PC), and begins executing. It is the sole responsibility of the Reset Handler to perform the CRT0 duties: copy initialized variables (<code>.data</code>) from the Flash ROM into SRAM, zero out the uninitialized variables (<code>.bss</code>) in SRAM, initialize the System Clocks, and finally, execute a <code>bl main</code> (branch and link) instruction to hand control to your C application.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day40-t1-sec-trench-story",
+          "title": "Production Trench Story"
+        },
+        {
+          "type": "callout",
+          "block_id": "day40-t1-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage: The Non-Zeroed BSS",
+          "content": "<p>An embedded team built a highly complex flight controller for a drone. They wrote standard C code: <code>static bool is_drone_armed;</code>. In C, uninitialized global variables are guaranteed by the ISO Standard to be initialized to Zero (False). When the engineers ran the code on a Linux simulator, it worked flawlessly. When they flashed it to the physical drone, the drone immediately spun its propellers at maximum RPM on boot and smashed into the ceiling. The bug? The engineers wrote their own bare-metal bootloader but skipped the CRT0 step that zeroes out the <code>.bss</code> segment. Because SRAM holds random garbage electricity on boot, the memory location for <code>is_drone_armed</code> powered up as <code>0x4F</code> (True). Standard C guarantees are merely illusions maintained by the OS. In bare metal, if you do not physically write zeroes to the RAM during boot, the C standard does not exist.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day40-t1-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day40-t1-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "What is the physical reality of the `main()` function in a Bare-Metal embedded C architecture?",
+              "options": [
+                { "id": "t1-q1-a", "text": "It is the very first instruction executed by the CPU hardware upon receiving power.", "is_correct": false, "explanation": "The hardware relies on the Vector Table, not `main()`." },
+                { "id": "t1-q1-b", "text": "`main()` is completely meaningless to the hardware. The CPU boots by reading the Reset Vector address from the hardware Vector Table. `main()` is merely a standard C function that the CRT0 boot script manually jumps to after initializing RAM.", "is_correct": true, "explanation": "In bare metal, you can rename `main()` to `start_drone()` as long as the CRT0 script knows where to branch." },
+                { "id": "t1-q1-c", "text": "It initializes the `.bss` segment to zero automatically.", "is_correct": false, "explanation": "CRT0 handles `.bss` initialization before `main()` executes." },
+                { "id": "t1-q1-d", "text": "It is executed by the Linux Kernel loader.", "is_correct": false, "explanation": "Bare-metal implies the complete absence of a Kernel." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Writing Linker Scripts (.ld) to Map Flash ROM and SRAM",
+        "category": "Compilation Pipeline",
+        "complexity": "Elite",
+        "standard": "GNU LD",
+        "read_time": 30,
+        "prerequisites": ["day-40-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day40-t2-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day40-t2-txt-strategic-problem",
+          "content": "<p>When GCC compiles your code, it outputs Relocatable Object Files (<code>.o</code>). It knows your code has a <code>.text</code> segment (instructions) and a <code>.data</code> segment (variables). In a Linux environment, the Linker blindly clumps these together into an ELF binary, relying on the OS Virtual Memory Manager to map them to random RAM addresses. In Bare Metal, <strong>there is no Virtual Memory</strong>. You are dealing with physical silicon wiring. If your Microcontroller has Flash ROM starting at address <code>0x08000000</code> and SRAM starting at <code>0x20000000</code>, the Linker must mathematically hardcode every single function and variable pointer to those exact physical addresses. If the Linker puts a variable at an address where no physical RAM exists, writing to it triggers a hardware bus fault. We command the Linker using <strong>Bare-Metal Linker Scripts (<code>.ld</code>)</strong>.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day40-t2-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day40-t2-api-main",
+          "signature": "ENTRY(Reset_Handler)\nMEMORY {\n    FLASH (rx) : ORIGIN = 0x08000000, LENGTH = 256K\n    RAM (rwx)  : ORIGIN = 0x20000000, LENGTH = 64K\n}\nSECTIONS {\n    .text : { *(.isr_vector) *(.text) } > FLASH\n}",
+          "description": "The declarative GNU Linker language used to physically route compiled code to hardware memory regions.",
+          "parameters": [
+            { "name": "ENTRY", "type": "Directive", "description": "Explicitly defines the entry point symbol. Required for debugging tools (GDB) to know where execution starts." },
+            { "name": "MEMORY", "type": "Block", "description": "Defines the physical silicon memory map of the specific microcontroller, enforcing strict size limits (LENGTH)." },
+            { "name": "SECTIONS", "type": "Block", "description": "Instructs the linker how to map the logical segments (e.g., .text) from the .o files into the physical MEMORY regions." }
+          ],
+          "returns": { "type": "N/A", "description": "Outputs a fully linked, absolute-addressed executable binary (e.g., .elf, .bin, or .hex)." },
+          "complexity": "The Linker resolves thousands of unresolved symbols across multiple files in O(N log N) time.",
+          "exceptions": "If the .text segment exceeds 256K, the Linker throws a fatal 'region FLASH overflowed' error."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day40-t2-sec-mechanics",
+          "title": "Internal Mechanics: LMA vs VMA"
+        },
+        {
+          "type": "text",
+          "block_id": "day40-t2-txt-mechanics",
+          "content": "<p>The most confusing architectural concept in Linker Scripts is the difference between <strong>LMA (Load Memory Address)</strong> and <strong>VMA (Virtual/Execution Memory Address)</strong>. Consider the <code>.data</code> segment (initialized global variables like <code>int speed = 100;</code>). When power is lost, RAM is erased. Therefore, the initialization value (<code>100</code>) must be burned permanently into the read-only Flash ROM. The LMA of <code>.data</code> is in FLASH. However, C code must be able to mutate <code>speed</code> at runtime, meaning it must physically exist in RAM when the CPU executes. The VMA of <code>.data</code> is in SRAM. The Linker Script must orchestrate this dual-identity, directing the flashing tool to burn the data into ROM, while secretly hardcoding all C pointers to look for the data in RAM.</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day40-t2-svg-mechanics",
+          "caption": "A physical memory map showing the Linker Script directing executable code to Flash and writable variables to RAM.",
+          "alt_text": "Visual showing LMA (Flash) containing .text, .rodata, and .data. VMA (RAM) contains .data (copied over), .bss, and the Stack.",
+          "svg_code": "<svg viewBox='0 0 600 250' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='250' fill='var(--bg-card)'/><g transform='translate(50, 20)'><rect x='0' y='0' width='200' height='210' fill='none' stroke='var(--border-light)' stroke-width='2' rx='4'/><text x='100' y='25' fill='var(--text-primary)' font-family='monospace' font-weight='bold' text-anchor='middle'>FLASH ROM (0x08000000)</text><rect x='20' y='40' width='160' height='30' fill='var(--bg-hover)'/><text x='100' y='60' fill='var(--text-secondary)' font-family='monospace' font-size='12' text-anchor='middle'>.isr_vector</text><rect x='20' y='80' width='160' height='50' fill='rgba(14, 165, 233, 0.2)' stroke='var(--accent)'/><text x='100' y='105' fill='var(--accent)' font-family='monospace' font-size='12' text-anchor='middle'>.text (Code)</text><text x='100' y='120' fill='var(--text-secondary)' font-family='monospace' font-size='10' text-anchor='middle'>LMA &amp; VMA</text><rect x='20' y='140' width='160' height='50' fill='rgba(245, 158, 11, 0.2)' stroke='var(--warning-border)'/><text x='100' y='165' fill='var(--warning-border)' font-family='monospace' font-size='12' font-weight='bold' text-anchor='middle'>.data (Initial Values)</text><text x='100' y='180' fill='var(--warning-border)' font-family='monospace' font-size='10' text-anchor='middle'>LMA ONLY</text></g><g transform='translate(350, 20)'><rect x='0' y='0' width='200' height='210' fill='none' stroke='var(--border-light)' stroke-width='2' rx='4'/><text x='100' y='25' fill='var(--text-primary)' font-family='monospace' font-weight='bold' text-anchor='middle'>SRAM (0x20000000)</text><rect x='20' y='40' width='160' height='50' fill='rgba(245, 158, 11, 0.2)' stroke='var(--warning-border)'/><text x='100' y='65' fill='var(--text-primary)' font-family='monospace' font-size='12' font-weight='bold' text-anchor='middle'>.data (Variables)</text><text x='100' y='80' fill='var(--text-secondary)' font-family='monospace' font-size='10' text-anchor='middle'>VMA (Execution)</text><rect x='20' y='100' width='160' height='40' fill='rgba(16, 185, 129, 0.2)' stroke='var(--success-border)'/><text x='100' y='125' fill='var(--success-border)' font-family='monospace' font-size='12' text-anchor='middle'>.bss (Zeroed)</text><rect x='20' y='150' width='160' height='40' fill='rgba(239, 68, 68, 0.2)' stroke='var(--danger-border)'/><text x='100' y='175' fill='var(--danger-border)' font-family='monospace' font-size='12' text-anchor='middle'>Stack (Grows Down)</text></g><path d='M250 165 Q 300 165 300 115 Q 300 65 350 65' stroke='var(--warning-border)' stroke-width='3' fill='none' marker-end='url(#arrow-warn)' stroke-dasharray='4,4'/><text x='300' y='100' fill='var(--warning-border)' font-size='10' font-family='monospace' text-anchor='middle'>CRT0 Copy</text><defs><marker id='arrow-warn' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--warning-border)'/></marker></defs></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day40-t2-sec-trench-story",
+          "title": "Production Trench Story"
+        },
+        {
+          "type": "callout",
+          "block_id": "day40-t2-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage: The Silent Stack Collision",
+          "content": "<p>A medical device company deployed a firmware update. The update worked fine in the lab but randomly rebooted the device in production. The engineers checked the Linker Script. They had correctly defined the SRAM limit as <code>LENGTH = 64K</code>. However, over years of development, the global variables (<code>.data</code> and <code>.bss</code>) had grown to consume 60KB. The Linker compiled the binary successfully because 60KB was strictly less than 64KB. But they forgot about the Stack. The hardware Stack grows downward from the top of the RAM. The local variables and function call histories consumed 6KB of RAM. <code>60KB + 6KB = 66KB</code>. The hardware Stack physically collided with the `.bss` global variables, silently overwriting critical system state with return addresses. The Linker couldn't detect it because Stack size is dynamic. Elite linker scripts mandate an explicit Stack allowance assertion: <code>ASSERT(_estack - _ebss &gt; MIN_STACK_SIZE, \"Stack Collision Imminent!\");</code> to mathematically guarantee safe boundaries at compile time.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day40-t2-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day40-t2-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "In a Bare-Metal Linker Script, what is the critical architectural difference between the LMA (Load Memory Address) and VMA (Virtual Memory Address) of the `.data` segment?",
+              "options": [
+                { "id": "t2-q1-a", "text": "LMA dictates where the memory is mapped via the OS page tables, while VMA dictates where the hard drive stores it.", "is_correct": false, "explanation": "There is no OS or Virtual Memory paging in bare metal." },
+                { "id": "t2-q1-b", "text": "The `.data` segment must be permanently burned into the read-only Flash ROM (its LMA) so it survives power loss. However, because C code must mutate these variables, the Linker hardcodes all pointers to point to SRAM (its VMA). The CRT0 script physically copies the bytes from the LMA to the VMA during boot.", "is_correct": true, "explanation": "This dual-addressing mechanism is the cornerstone of embedded firmware architecture." },
+                { "id": "t2-q1-c", "text": "LMA applies to C++ objects, while VMA applies to standard C structs.", "is_correct": false, "explanation": "The memory addressing applies universally regardless of the programming language." },
+                { "id": "t2-q1-d", "text": "They are exactly the same physical address.", "is_correct": false, "explanation": "If they were the same, writing to a global variable would attempt to write to Flash ROM, causing a bus fault." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Defining Linker Symbols for CRT0 Boot Initialization",
+        "category": "Interoperability",
+        "complexity": "Expert",
+        "standard": "GNU LD / C",
+        "read_time": 30,
+        "prerequisites": ["day-40-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day40-t3-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day40-t3-txt-strategic-problem",
+          "content": "<p>We established that the CRT0 (Reset Handler) must copy the <code>.data</code> segment from Flash to SRAM, and must zero out the <code>.bss</code> segment in SRAM. But there is a massive architectural disconnect: How does the C code inside the CRT0 know <em>where</em> the `.data` segment is in physical memory? How does it know how <em>large</em> the segment is? The C compiler has absolutely no idea, because the size of `.data` changes every time you add or remove a variable, and only the Linker decides the final layout. We must bridge the gap between the Linker and the C Code by generating dynamic <strong>Linker Symbols</strong> and exposing them directly to the C execution context.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day40-t3-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day40-t3-api-main",
+          "signature": "// In the Linker Script (.ld)\n.data : {\n    _sdata = .;\n    *(.data)\n    _edata = .;\n} > RAM AT> FLASH\n_la_data = LOADADDR(.data);\n\n// In the C Code (CRT0)\n<span class=\"syntax-kw\">extern</span> <span class=\"syntax-ty\">uint32_t</span> _sdata, _edata, _la_data;",
+          "description": "The mechanism for injecting mathematical memory addresses calculated by the Linker into the C namespace.",
+          "parameters": [
+            { "name": ".", "type": "Location Counter", "description": "The current memory address being processed by the Linker." },
+            { "name": "_sdata / _edata", "type": "Linker Symbols", "description": "Custom variables created inside the Linker Script marking the exact Start and End of the segment in RAM (VMA)." },
+            { "name": "_la_data", "type": "Linker Symbol", "description": "The absolute physical address in the Flash ROM where the .data segment was burned (LMA)." },
+            { "name": "extern", "type": "C Keyword", "description": "Instructs the C compiler that these variables exist, but their memory addresses will be provided later by the Linker." }
+          ],
+          "returns": { "type": "N/A", "description": "N/A" },
+          "complexity": "O(1) resolution at link-time.",
+          "exceptions": "Linker symbols do not possess memory themselves; their 'address' IS the value. You must strictly use the address-of operator (&_sdata) in C."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day40-t3-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day40-t3-txt-mechanics",
+          "content": "<p>When you declare an <code>extern uint32_t _sdata;</code> in C, you are telling the compiler, \"There is a variable named `_sdata` somewhere else.\" The C compiler blindly generates an unresolved memory pointer. During the final Linking phase, the Linker finds this unresolved pointer and forcibly overwrites it with the mathematical address it calculated for the start of the `.data` segment (e.g., <code>0x20000000</code>). <strong>Critical distinction:</strong> The variable `_sdata` does not hold data. Its physical memory address <em>is</em> the data. To use it in C, you must extract its pointer address via <code>&amp;_sdata</code>.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day40-t3-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day40-t3-cb-crt0",
+          "language": "c",
+          "header": "Writing the CRT0 Reset Handler (Assessment Check)",
+          "code": "#include &lt;stdint.h&gt;\n\n// 1. Import the dynamic symbols calculated by the Linker\nextern uint32_t _sdata;\nextern uint32_t _edata;\nextern uint32_t _la_data; // Load Address (Flash)\n\nextern uint32_t _sbss;\nextern uint32_t _ebss;\n\n// The entry point for our C application\nextern int main(void);\n\n// 2. The True Hardware Entry Point\nvoid Reset_Handler(void) {\n    // A. Copy the .data segment from Flash ROM (LMA) to SRAM (VMA)\n    uint32_t *ram_ptr = &_sdata;    // Destination in RAM\n    uint32_t *flash_ptr = &_la_data; // Source in Flash\n    \n    while (ram_ptr < &_edata) {\n        *ram_ptr++ = *flash_ptr++;\n    }\n    \n    // B. Zero out the .bss segment in SRAM\n    // If we skip this, uninitialized variables hold random garbage!\n    ram_ptr = &_sbss;\n    while (ram_ptr < &_ebss) {\n        *ram_ptr++ = 0;\n    }\n    \n    // C. Initialize hardware clocks or FPU here if needed...\n    \n    // D. Finally, call the standard C application\n    main();\n    \n    // E. Fallback: If main() ever accidentally returns, we must not execute \n    // random memory. We trap the CPU in an infinite loop.\n    while (1) {}\n}"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day40-t3-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day40-t3-txt-debug-intro",
+          "content": "<p>Analyze the following broken snippet. Find the vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day40-t3-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The Linker Dereference",
+          "code": "extern uint32_t _sdata;\nextern uint32_t _edata;\n\nvoid verify_memory_size() {\n    // Engineer wants to calculate how many bytes the .data segment consumes\n    // DANGER: Massive logical error resulting in random math\n    uint32_t size = _edata - _sdata;\n    \n    printf(\"Data Size: %u bytes\\n\", size);\n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day40-t3-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "In standard C, variables map to memory locations that contain values. Linker Symbols are architecturally unique. The Linker does not allocate RAM to store the value of `_sdata`. The Linker explicitly binds the *address* of `_sdata` to the start of the RAM segment. By evaluating `_edata - _sdata`, the engineer is physically reading the random integers stored *inside* the very first byte of RAM and subtracting the random integer stored *inside* the last byte of RAM. To perform math on Linker Symbols, you must execute pointer arithmetic on their addresses! Fix: `uint32_t size = (uint32_t)&_edata - (uint32_t)&_sdata;`." }
+          ]
+        },
+        {
+          "type": "callout",
+          "block_id": "day40-t3-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Absolute Linker Linking:</strong> Linker scripts and CRT0 startup code are inextricably linked. Modifying the naming convention in the <code>.ld</code> file (e.g., renaming <code>_sdata</code> to <code>__start_data</code>) will instantly trigger \"Undefined Reference\" fatal Linker errors in the CRT0 C code.</li><li><strong>Bypass the C Standard Library:</strong> In bare-metal environments, functions like <code>printf</code> or <code>malloc</code> physically do not exist until you write the complex syscall wrappers (Newlib/Semihosting) to route them to hardware UART ports. Your CRT0 must never invoke standard library functions.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day40-t3-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day40-t3-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "Why is it mathematically critical to use the address-of operator (e.g., `&_sdata`) when interacting with Linker-defined symbols inside a C program?",
+              "options": [
+                { "id": "t3-q1-a", "text": "Because Linker symbols are arrays, and arrays naturally decay to pointers.", "is_correct": false, "explanation": "They are not arrays." },
+                { "id": "t3-q1-b", "text": "Because the Linker does not allocate physical memory to store the 'value' of the symbol. The physical memory address of the symbol ITSELF represents the value the Linker calculated. Omitting the `&` operator reads random garbage data from RAM.", "is_correct": true, "explanation": "This unique mechanism allows the Linker to hardcode absolute physical addresses seamlessly into the C executable." },
+                { "id": "t3-q1-c", "text": "To satisfy the Strict Aliasing rule.", "is_correct": false, "explanation": "Strict Aliasing manages pointer casting types, not symbol resolution mechanics." },
+                { "id": "t3-q1-d", "text": "To force the memory into the `.bss` segment.", "is_correct": false, "explanation": "The segment placement is handled explicitly by the Linker Script." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,275 @@
+{
+  "day": 30,
+  "module": "8: Multithreading, Concurrency & IPC",
+  "topics": [
+    {
+      "header_hub": {
+        "title": "Mutual Exclusion (pthread_mutex_t) to prevent Data Races",
+        "category": "Concurrency",
+        "complexity": "Intermediate",
+        "standard": "POSIX",
+        "read_time": 25,
+        "prerequisites": ["day-29-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day30-t1-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day30-t1-txt-strategic-problem",
+          "content": "<p>When multiple threads share the same Virtual Memory space, they can access the same global variables. However, a C statement like <code>counter++</code> is not a single instruction. The CPU must 1) <strong>Load</strong> the variable from RAM into a register, 2) <strong>Add</strong> 1 to the register, and 3) <strong>Store</strong> the register back to RAM. If Thread A and Thread B perform this simultaneously, Thread A might Load <code>0</code>, Thread B might Load <code>0</code>, both Add 1, and both Store <code>1</code>. Two increments occurred, but the counter only increased by 1. This is a catastrophic <strong>Data Race</strong>. To prevent this, we must enforce <strong>Mutual Exclusion</strong>, ensuring only one thread can execute a Critical Section of code at a time.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day30-t1-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day30-t1-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;pthread.h&gt;</span>\n\n<span class=\"syntax-ty\">pthread_mutex_t</span> lock = PTHREAD_MUTEX_INITIALIZER;\n\npthread_mutex_lock(&amp;lock);\ncounter++; // Critical Section\npthread_mutex_unlock(&amp;lock);",
+          "description": "The POSIX synchronization primitive used to enforce exclusive access to shared resources.",
+          "parameters": [
+            { "name": "pthread_mutex_lock", "type": "Function", "description": "Attempts to acquire the lock. If another thread holds it, the calling thread is suspended by the OS until the lock is released." },
+            { "name": "pthread_mutex_unlock", "type": "Function", "description": "Releases the lock, signaling the OS to wake up exactly one of the sleeping threads waiting for this mutex." }
+          ],
+          "returns": { "type": "int", "description": "Returns 0 on success, or a positive error code on failure." },
+          "complexity": "Acquiring an uncontended lock is fast. Acquiring a contended lock invokes a slow Kernel Context Switch.",
+          "exceptions": "Unlocking a mutex from a thread that does not currently hold it results in Undefined Behavior."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day30-t1-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day30-t1-txt-mechanics",
+          "content": "<p>A <code>pthread_mutex_t</code> is fundamentally backed by a hardware-level atomic instruction (like <code>lock cmpxchg</code> on x86) combined with an OS Kernel system call (like <code>futex</code> on Linux). When a thread calls <code>lock()</code>, it atomically checks if the mutex state is 0. If it is, it sets it to 1 and continues (Fast Path). If the state is already 1, the thread invokes the <code>futex</code> syscall. The OS physical removes the thread from the CPU Run Queue and puts it to sleep. This is why Mutexes are heavy: they guarantee safety, but under massive contention, they trigger thousands of slow OS Context Switches.</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day30-t1-svg-mechanics",
+          "caption": "The execution timeline of a Data Race vs Mutual Exclusion.",
+          "alt_text": "Visual showing the temporal overlap of Load-Add-Store in a data race causing data loss, contrasted with a Mutex strictly serializing the two threads.",
+          "svg_code": "<svg viewBox='0 0 600 250' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='250' fill='var(--bg-card)'/><g transform='translate(20, 20)'><rect x='0' y='0' width='260' height='210' fill='none' stroke='var(--danger-border)' stroke-width='2' rx='4'/><text x='130' y='25' fill='var(--danger-border)' font-family='monospace' font-weight='bold' text-anchor='middle'>Data Race (No Mutex)</text><text x='60' y='50' fill='var(--text-secondary)' font-family='monospace' font-size='10' text-anchor='middle'>Thread 1</text><text x='200' y='50' fill='var(--text-secondary)' font-family='monospace' font-size='10' text-anchor='middle'>Thread 2</text><rect x='20' y='70' width='80' height='20' fill='var(--bg-hover)'/><text x='60' y='83' fill='var(--text-primary)' font-size='10' text-anchor='middle'>Load (0)</text><rect x='160' y='90' width='80' height='20' fill='var(--bg-hover)'/><text x='200' y='103' fill='var(--text-primary)' font-size='10' text-anchor='middle'>Load (0)</text><rect x='20' y='110' width='80' height='20' fill='var(--bg-hover)'/><text x='60' y='123' fill='var(--text-primary)' font-size='10' text-anchor='middle'>Add 1</text><rect x='160' y='130' width='80' height='20' fill='var(--bg-hover)'/><text x='200' y='143' fill='var(--text-primary)' font-size='10' text-anchor='middle'>Add 1</text><rect x='20' y='150' width='80' height='20' fill='rgba(239, 68, 68, 0.2)' stroke='var(--danger-border)'/><text x='60' y='163' fill='var(--danger-border)' font-size='10' text-anchor='middle'>Store (1)</text><rect x='160' y='170' width='80' height='20' fill='rgba(239, 68, 68, 0.2)' stroke='var(--danger-border)'/><text x='200' y='183' fill='var(--danger-border)' font-size='10' text-anchor='middle'>Store (1)</text><text x='130' y='200' fill='var(--danger-border)' font-family='monospace' font-weight='bold' font-size='12' text-anchor='middle'>Final Value = 1</text></g><g transform='translate(320, 20)'><rect x='0' y='0' width='260' height='210' fill='none' stroke='var(--success-border)' stroke-width='2' rx='4'/><text x='130' y='25' fill='var(--success-border)' font-family='monospace' font-weight='bold' text-anchor='middle'>Mutual Exclusion</text><text x='60' y='50' fill='var(--text-secondary)' font-family='monospace' font-size='10' text-anchor='middle'>Thread 1</text><text x='200' y='50' fill='var(--text-secondary)' font-family='monospace' font-size='10' text-anchor='middle'>Thread 2</text><rect x='20' y='60' width='80' height='20' fill='rgba(16, 185, 129, 0.2)' stroke='var(--success-border)'/><text x='60' y='73' fill='var(--success-border)' font-size='10' text-anchor='middle'>Lock()</text><rect x='160' y='80' width='80' height='20' fill='rgba(245, 158, 11, 0.2)' stroke='var(--warning-border)'/><text x='200' y='93' fill='var(--warning-border)' font-size='10' text-anchor='middle'>Lock() BLOCKS</text><rect x='20' y='80' width='80' height='20' fill='var(--bg-hover)'/><text x='60' y='93' fill='var(--text-primary)' font-size='10' text-anchor='middle'>Load (0)</text><rect x='20' y='100' width='80' height='20' fill='var(--bg-hover)'/><text x='60' y='113' fill='var(--text-primary)' font-size='10' text-anchor='middle'>Add 1</text><rect x='20' y='120' width='80' height='20' fill='var(--bg-hover)'/><text x='60' y='133' fill='var(--text-primary)' font-size='10' text-anchor='middle'>Store (1)</text><rect x='20' y='140' width='80' height='20' fill='rgba(16, 185, 129, 0.2)' stroke='var(--success-border)'/><text x='60' y='153' fill='var(--success-border)' font-size='10' text-anchor='middle'>Unlock()</text><path d='M 100 150 L 160 150' stroke='var(--success-border)' stroke-width='2' stroke-dasharray='2,2' marker-end='url(#arrow-succ)'/><rect x='160' y='160' width='80' height='20' fill='var(--bg-hover)'/><text x='200' y='173' fill='var(--text-primary)' font-size='10' text-anchor='middle'>Load (1) -> ...</text><text x='130' y='200' fill='var(--success-border)' font-family='monospace' font-weight='bold' font-size='12' text-anchor='middle'>Final Value = 2</text></g><defs><marker id='arrow-succ' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--success-border)'/></marker></defs></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day30-t1-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day30-t1-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "What is the physical reality of a 'Data Race' in C?",
+              "options": [
+                { "id": "t1-q1-a", "text": "Two threads accessing the same Read-Only memory address at the same time.", "is_correct": false, "explanation": "Reading shared data concurrently is perfectly safe." },
+                { "id": "t1-q1-b", "text": "Two threads attempting to mutate the exact same physical memory address concurrently. Because 'simple' operations like variable increments actually consist of multiple distinct CPU instructions (Load, Add, Store), the execution timelines overlap, resulting in one thread silently overwriting the other's operation.", "is_correct": true, "explanation": "Mutual Exclusion forces these Read-Modify-Write cycles into a strict chronological queue." },
+                { "id": "t1-q1-c", "text": "A thread executing a network `read()` faster than the hardware can supply it.", "is_correct": false, "explanation": "This describes blocking I/O, not a Data Race." },
+                { "id": "t1-q1-d", "text": "Two variables assigned to the same register by the compiler.", "is_correct": false, "explanation": "The compiler handles register allocation safely; the issue is shared RAM." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Signaling State Changes using Condition Variables",
+        "category": "Concurrency",
+        "complexity": "Advanced",
+        "standard": "POSIX",
+        "read_time": 30,
+        "prerequisites": ["day-30-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day30-t2-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day30-t2-txt-strategic-problem",
+          "content": "<p>A Mutex guarantees exclusive access, but it does not orchestrate timing. Imagine a Thread Pool where Worker Threads are waiting for a Job Queue to contain work. If a worker uses a Mutex, it locks the queue, checks if jobs exist, and unlocks it. If empty, the worker loops instantly and checks again. This is called a <strong>Spinlock</strong> or \"Busy Waiting.\" 4 worker threads spinning like this will consume 400% CPU purely checking an empty queue, turning your server into a space heater. We need a mechanism for a thread to say: \"I will go to sleep inside the OS, consuming 0% CPU. Do not wake me up until the exact microsecond a new job is added.\" We achieve this using <strong>Condition Variables</strong>. </p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day30-t2-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day30-t2-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;pthread.h&gt;</span>\n\n<span class=\"syntax-ty\">pthread_cond_t</span> cond = PTHREAD_COND_INITIALIZER;\n\n// Consumer\npthread_mutex_lock(&amp;lock);\n<span class=\"syntax-kw\">while</span> (queue_is_empty) {\n    pthread_cond_wait(&amp;cond, &amp;lock);\n}\npthread_mutex_unlock(&amp;lock);\n\n// Producer\npthread_cond_signal(&amp;cond);",
+          "description": "The POSIX synchronization primitive that allows threads to suspend execution and relinquish the CPU until explicitly notified.",
+          "parameters": [
+            { "name": "pthread_cond_wait", "type": "Function", "description": "Atomically unlocks the provided mutex and puts the thread to sleep. When awoken, it automatically re-acquires the mutex before returning." },
+            { "name": "pthread_cond_signal", "type": "Function", "description": "Wakes up exactly ONE thread sleeping on this condition variable." },
+            { "name": "pthread_cond_broadcast", "type": "Function", "description": "Wakes up ALL threads currently sleeping on this condition variable." }
+          ],
+          "returns": { "type": "int", "description": "Returns 0 on success." },
+          "complexity": "O(1) sleep/wake transitions. Dramatically reduces CPU utilization compared to polling.",
+          "exceptions": "Condition Variables suffer from 'Spurious Wakeups', where the OS wakes the thread randomly due to hardware signals. You MUST wrap pthread_cond_wait in a 'while' loop."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day30-t2-sec-mechanics",
+          "title": "Internal Mechanics: The Atomic Unlock"
+        },
+        {
+          "type": "text",
+          "block_id": "day30-t2-txt-mechanics",
+          "content": "<p>The genius of <code>pthread_cond_wait()</code> is its atomicity. You must already hold the Mutex when you call it. The OS instantly puts your thread to sleep <strong>and</strong> unlocks the Mutex in the same unbreakable hardware cycle. If these two actions were separate, a Producer could push a job and fire the <code>signal</code> in the microscopic gap between the Consumer unlocking the mutex and going to sleep. The signal would be lost forever, and the Consumer would sleep eternally. When the Consumer is eventually awoken, the OS forces it to wait in line to re-acquire the Mutex before <code>pthread_cond_wait()</code> is allowed to return.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day30-t2-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day30-t2-cb-condvar",
+          "language": "c",
+          "header": "A Thread-Safe Job Queue (Assessment Check)",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;stdlib.h&gt;\n#include &lt;pthread.h&gt;\n#include &lt;unistd.h&gt;\n\nint job_count = 0;\npthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;\npthread_cond_t cond = PTHREAD_COND_INITIALIZER;\n\nvoid* worker_thread(void* arg) {\n    while (1) {\n        pthread_mutex_lock(&lock);\n        \n        // The Spurious Wakeup Defense Loop\n        // We MUST use 'while', not 'if'. If the OS wakes us up randomly, \n        // we check job_count. If it's still 0, we immediately go back to sleep.\n        while (job_count == 0) {\n            printf(\"Worker sleeping. 0% CPU.\\n\");\n            pthread_cond_wait(&cond, &lock);\n        }\n        \n        // We have been awoken, AND we currently hold the lock!\n        job_count--;\n        printf(\"Worker processed a job. Remaining: %d\\n\", job_count);\n        \n        pthread_mutex_unlock(&lock);\n        sleep(1); // Simulate hard work outside the lock\n    }\n    return NULL;\n}\n\nvoid* producer_thread(void* arg) {\n    while (1) {\n        sleep(3); // Wait a bit, then generate a burst of jobs\n        \n        pthread_mutex_lock(&lock);\n        job_count += 3;\n        printf(\"\\nProducer created 3 jobs!\\n\");\n        pthread_mutex_unlock(&lock);\n        \n        // Wake up exactly 3 sleeping workers to handle the burst\n        pthread_cond_signal(&cond);\n        pthread_cond_signal(&cond);\n        pthread_cond_signal(&cond);\n    }\n    return NULL;\n}"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day30-t2-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day30-t2-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "Why is it mandatory to place `pthread_cond_wait()` inside a `while (condition)` loop rather than a simple `if (condition)` statement?",
+              "options": [
+                { "id": "t2-q1-a", "text": "Because `pthread_cond_wait()` fails frequently and must be retried.", "is_correct": false, "explanation": "It doesn't fail; it suffers from spurious hardware wakeups." },
+                { "id": "t2-q1-b", "text": "Due to 'Spurious Wakeups'. The OS Kernel may occasionally wake up sleeping threads due to unrelated hardware interrupts or signal deliveries. If the thread wakes up without the underlying logic condition actually being met, the `while` loop forces it instantly back to sleep, preventing catastrophic state corruption.", "is_correct": true, "explanation": "Never trust the OS wakeup; always rigorously re-verify the state variables." },
+                { "id": "t2-q1-c", "text": "Because a single signal always wakes up all threads simultaneously.", "is_correct": false, "explanation": "That is what `pthread_cond_broadcast()` does. `signal()` wakes only one." },
+                { "id": "t2-q1-d", "text": "To prevent Mutex deadlocks.", "is_correct": false, "explanation": "The loop prevents logical corruption, not deadlocks." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Semaphores, Deadlocks, and Priority Inversion",
+        "category": "Architecture",
+        "complexity": "Expert",
+        "standard": "POSIX",
+        "read_time": 35,
+        "prerequisites": ["day-30-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day30-t3-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day30-t3-txt-strategic-problem",
+          "content": "<p>A Mutex is binary: Locked or Unlocked. It is designed to protect a single resource. What if you have a database connection pool with exactly 5 connections? You want the first 5 threads to grab connections immediately, but you want the 6th thread to go to sleep until a connection is freed. A Mutex cannot do this. We need a counter-based lock: a <strong>Semaphore</strong>. Furthermore, as we scale our locking architecture across multiple resources, we introduce the risk of two catastrophic architectural failures: <strong>Deadlocks</strong> (circular waiting) and <strong>Priority Inversion</strong> (where a low-priority thread accidentally starves a mission-critical thread).</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day30-t3-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day30-t3-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;semaphore.h&gt;</span>\n\n<span class=\"syntax-ty\">sem_t</span> pool_sem;\nsem_init(&amp;pool_sem, 0, 5);\n\nsem_wait(&amp;pool_sem);   // Decrement\nsem_post(&amp;pool_sem);   // Increment",
+          "description": "The POSIX synchronization primitive acting as a secure integer counter.",
+          "parameters": [
+            { "name": "sem_init", "type": "Function", "description": "Initializes the semaphore. The 3rd argument is the starting token count (e.g., 5)." },
+            { "name": "sem_wait", "type": "Function", "description": "If the count > 0, it decrements it by 1 and continues. If count == 0, the thread is put to sleep until a token returns." },
+            { "name": "sem_post", "type": "Function", "description": "Increments the counter by 1. If threads are sleeping on this semaphore, the OS wakes exactly one up." }
+          ],
+          "returns": { "type": "int", "description": "0 on success." },
+          "complexity": "O(1) tracking mechanism for pooled resources.",
+          "exceptions": "If you forget to call sem_post(), the available pool permanently shrinks (Semaphore Leak)."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day30-t3-sec-trench-story",
+          "title": "Production Trench Story: Priority Inversion"
+        },
+        {
+          "type": "callout",
+          "block_id": "day30-t3-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The Mars Pathfinder Mission (1997)",
+          "content": "<p>Shortly after landing on Mars, the Pathfinder rover began experiencing catastrophic, random system reboots. The OS was running three threads: Low (Meteorological Data), Medium (Communications), and High (Critical Bus Management). The Low thread acquired a Mutex to write data. Before it could unlock, the OS preempted it to run the High thread. The High thread needed that exact Mutex, so it went to sleep waiting for Low to finish. Then, the Medium thread woke up. Because Medium > Low, the OS gave the CPU to Medium. Medium ran for a long time. The High thread was physically starving to death waiting for Low, but Low couldn't run because Medium was hogging the CPU! The watchdog timer detected the Critical Bus Management thread was dead and rebooted the rover. NASA uploaded a patch enabling <strong>Priority Inheritance</strong>: when a High thread waits on a Mutex held by a Low thread, the OS temporarily elevates the Low thread to High priority so it can finish its work and release the lock immediately.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day30-t3-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day30-t3-txt-debug-intro",
+          "content": "<p>Analyze the following broken snippet. Find the vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day30-t3-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The Classic Deadlock",
+          "code": "pthread_mutex_t lock_A = PTHREAD_MUTEX_INITIALIZER;\npthread_mutex_t lock_B = PTHREAD_MUTEX_INITIALIZER;\n\nvoid* thread_1_logic() {\n    pthread_mutex_lock(&lock_A);\n    sleep(1); // Simulate work\n    pthread_mutex_lock(&lock_B); // Wants B\n    \n    // ... execute logic ...\n    \n    pthread_mutex_unlock(&lock_B);\n    pthread_mutex_unlock(&lock_A);\n}\n\nvoid* thread_2_logic() {\n    pthread_mutex_lock(&lock_B);\n    sleep(1); // Simulate work\n    pthread_mutex_lock(&lock_A); // Wants A\n    \n    // ... execute logic ...\n    \n    pthread_mutex_unlock(&lock_A);\n    pthread_mutex_unlock(&lock_B);\n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day30-t3-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "This is the ultimate 'Circular Wait' Deadlock. Thread 1 acquires Lock A. At the exact same time, Thread 2 acquires Lock B. Thread 1 then attempts to acquire Lock B, but goes to sleep because Thread 2 holds it. Thread 2 attempts to acquire Lock A, but goes to sleep because Thread 1 holds it. Both threads are asleep, waiting for the other to release a lock. The application permanently freezes. Fix: You must enforce **Strict Lock Ordering**. If every thread in the entire codebase is mathematically forced to always acquire Lock A *before* attempting to acquire Lock B, circular deadlocks are structurally impossible." }
+          ]
+        },
+        {
+          "type": "callout",
+          "block_id": "day30-t3-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Mutex vs Binary Semaphore:</strong> A Semaphore initialized to 1 acts like a Mutex, but there is a critical distinction. A Mutex possesses <em>Ownership</em>; the thread that locks it MUST be the thread that unlocks it. A Semaphore does not have ownership; Thread A can call <code>sem_wait()</code>, and Thread B can call <code>sem_post()</code>. This allows Semaphores to be used as asynchronous signaling mechanisms between distinct processes.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day30-t3-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day30-t3-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "What is the architectural mechanism of Priority Inversion in a multithreaded OS?",
+              "options": [
+                { "id": "t3-q1-a", "text": "When a high-priority thread runs too long, starving a low-priority thread.", "is_correct": false, "explanation": "This is standard priority behavior, not an inversion." },
+                { "id": "t3-q1-b", "text": "When a high-priority thread attempts to acquire a Mutex currently held by a low-priority thread. The low-priority thread is preempted by a medium-priority thread, effectively causing the medium-priority thread to eternally block the high-priority thread.", "is_correct": true, "explanation": "This breaks the scheduling logic entirely. It is resolved by the OS utilizing Priority Inheritance." },
+                { "id": "t3-q1-c", "text": "When a thread attempts to unlock a mutex it doesn't own.", "is_correct": false, "explanation": "This results in Undefined Behavior, not a scheduling inversion." },
+                { "id": "t3-q1-d", "text": "When two threads wait for each other in a circular chain.", "is_correct": false, "explanation": "This is the definition of a Deadlock." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,269 @@
+{
+  "day": 33,
+  "module": "9: Network Sockets & Protocols",
+  "topics": [
+    {
+      "header_hub": {
+        "title": "The OSI Model and The Berkeley Sockets API",
+        "category": "Architecture",
+        "complexity": "Intermediate",
+        "standard": "POSIX",
+        "read_time": 30,
+        "prerequisites": ["day-22-topic-1", "day-23-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day33-t1-sec-strategic-problem",
+          "title": "The Strategic Problem: The OSI Abstraction"
+        },
+        {
+          "type": "text",
+          "block_id": "day33-t1-txt-strategic-problem",
+          "content": "<p>To send a message across the internet, data must be converted from C variables into electrical voltages, routed across physical fiber-optic cables, and reassembled on the other side. This is impossibly complex. In 1984, the ISO standardized the <strong>OSI (Open Systems Interconnection) Model</strong>, dividing networking into 7 isolated layers.  As a C Systems Engineer, you must understand how your code interacts with this stack. <strong>Layer 1/2 (Physical/Data Link)</strong> handle MAC addresses and ethernet switches. <strong>Layer 3 (Network)</strong> handles IP Addresses and routing. <strong>Layer 4 (Transport)</strong> handles TCP/UDP and Ports. To bridge the gap between your C application (Layer 7) and the OS Kernel (Layers 3 & 4), engineers at UC Berkeley invented a universal abstraction: <strong>The Berkeley Sockets API</strong>.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day33-t1-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day33-t1-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;sys/socket.h&gt;</span>\n\n<span class=\"syntax-kw\">int</span> server_fd = socket(AF_INET, SOCK_STREAM, 0);\nbind(server_fd, (<span class=\"syntax-kw\">struct</span> sockaddr*)&amp;addr, <span class=\"syntax-kw\">sizeof</span>(addr));\nlisten(server_fd, 128);\n<span class=\"syntax-kw\">int</span> client_fd = accept(server_fd, NULL, NULL);",
+          "description": "The mandatory POSIX sequence to boot a TCP server and interface with OSI Layer 4.",
+          "parameters": [
+            { "name": "socket", "type": "Syscall", "description": "Requests a File Descriptor from the OS configured for Layer 3 IPv4 (AF_INET) and Layer 4 TCP (SOCK_STREAM)." },
+            { "name": "bind", "type": "Syscall", "description": "Reserves a specific local Layer 4 Port (e.g., 8080) for this process. Fails if another app holds the port." },
+            { "name": "listen", "type": "Syscall", "description": "Mutates the socket from 'Active' to 'Passive', instructing the OS to queue incoming TCP handshakes." },
+            { "name": "accept", "type": "Syscall", "description": "Pops the first fully authenticated client off the backlog queue and returns a BRAND NEW File Descriptor for that specific client." }
+          ],
+          "returns": { "type": "int", "description": "Return -1 on failure (setting errno). Success returns 0 (bind/listen) or a new FD (socket/accept)." },
+          "complexity": "socket(), bind(), and listen() are O(1). accept() physically blocks the thread until a client connects.",
+          "exceptions": "If the backlog queue fills up, the OS will silently drop new incoming Layer 4 SYN packets."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day33-t1-sec-mechanics",
+          "title": "Internal Mechanics: Listening vs Connected Sockets"
+        },
+        {
+          "type": "text",
+          "block_id": "day33-t1-txt-mechanics",
+          "content": "<p>Because \"Everything is a File\" in UNIX, a network socket is represented as a standard File Descriptor (an integer). However, the most misunderstood mechanism in network programming is <code>accept()</code>. When you call <code>socket()</code>, you create a \"Listening Socket\". This socket <strong>never</strong> transfers data. Its only physical purpose in the OS is to sit on the port, process OSI Layer 4 handshakes, and spawn \"Client Sockets\". When a user connects, <code>accept()</code> clones the network state and returns a completely distinct File Descriptor (e.g., FD 4). If a second user connects, <code>accept()</code> returns FD 5. The original Listening Socket (FD 3) remains permanently in the listening state. You use <code>read()</code> and <code>write()</code> exclusively on the Client Sockets.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day33-t1-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day33-t1-cb-server",
+          "language": "c",
+          "header": "Booting a Basic TCP Echo Server",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;stdlib.h&gt;\n#include &lt;unistd.h&gt;\n#include &lt;sys/socket.h&gt;\n#include &lt;netinet/in.h&gt;\n\nint main() {\n    // 1. Create the listening socket (Layer 3: IPv4, Layer 4: TCP)\n    int server_fd = socket(AF_INET, SOCK_STREAM, 0);\n    \n    // (Setup address struct here - see Topic 3)\n    struct sockaddr_in addr = {0};\n    addr.sin_family = AF_INET;\n    addr.sin_port = htons(8080);\n    addr.sin_addr.s_addr = INADDR_ANY;\n    \n    // 2. Bind the socket to port 8080\n    if (bind(server_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {\n        perror(\"Bind failed\"); return 1;\n    }\n    \n    // 3. Enter Passive Listening state\n    listen(server_fd, 10);\n    printf(\"Server listening on port 8080...\\n\");\n    \n    // 4. The Infinite Accept Loop\n    while (1) {\n        // Thread blocks here until someone completes the Layer 4 handshake\n        int client_fd = accept(server_fd, NULL, NULL);\n        printf(\"Client connected!\\n\");\n        \n        char buffer[1024];\n        ssize_t bytes = read(client_fd, buffer, sizeof(buffer));\n        if (bytes > 0) {\n            // Echo the bytes back to the client\n            write(client_fd, buffer, bytes);\n        }\n        \n        // Disconnect this specific client.\n        // The server_fd remains open for the next loop iteration.\n        close(client_fd);\n    }\n    return 0;\n}"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day33-t1-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day33-t1-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "Which layers of the OSI model does the POSIX command `socket(AF_INET, SOCK_STREAM, 0)` explicitly configure?",
+              "options": [
+                { "id": "t1-q1-a", "text": "Layer 1 (Physical) and Layer 2 (Data Link).", "is_correct": false, "explanation": "The OS Network Interface Card driver handles L1 and L2 natively." },
+                { "id": "t1-q1-b", "text": "Layer 3 (Network via AF_INET/IPv4) and Layer 4 (Transport via SOCK_STREAM/TCP).", "is_correct": true, "explanation": "The Sockets API bridges the Application (Layer 7) directly to the OS Kernel's implementation of Layers 3 and 4." },
+                { "id": "t1-q1-c", "text": "Layer 7 (Application).", "is_correct": false, "explanation": "Your C code *is* Layer 7; the socket configures the lower transport layers." },
+                { "id": "t1-q1-d", "text": "It configures all 7 layers automatically.", "is_correct": false, "explanation": "The Socket API strictly abstracts transport and routing." }
+              ]
+            },
+            {
+              "question": "What is the architectural distinction between the File Descriptor returned by `socket()` and the File Descriptor returned by `accept()`?",
+              "options": [
+                { "id": "t1-q2-a", "text": "There is no difference; they are the exact same File Descriptor.", "is_correct": false, "explanation": "They represent entirely different OS objects." },
+                { "id": "t1-q2-b", "text": "The FD from `socket()` is the 'Listening Socket' used exclusively to handle incoming connection requests. The FD from `accept()` is a brand new 'Connected Socket' dedicated entirely to transferring payload data for a specific client.", "is_correct": true, "explanation": "This separation of concerns allows a single server to handle thousands of unique clients on a single port." },
+                { "id": "t1-q2-c", "text": "The FD from `socket()` is for UDP, and `accept()` is for TCP.", "is_correct": false, "explanation": "`accept()` is specific to connection-oriented protocols (TCP), but `socket()` is used for both." },
+                { "id": "t1-q2-d", "text": "`accept()` returns a FILE* stream, while `socket()` returns a raw integer.", "is_correct": false, "explanation": "Both return raw integers (File Descriptors)." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "TCP State Mechanics (SYN, ACK) and Reliable Streams",
+        "category": "Networking",
+        "complexity": "Advanced",
+        "standard": "RFC 793",
+        "read_time": 30,
+        "prerequisites": ["day-33-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day33-t2-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day33-t2-txt-strategic-problem",
+          "content": "<p>The internet is fundamentally chaotic. Packets traverse dozens of routers; they are delayed, duplicated, corrupted, or dropped completely. If you write data to a raw network interface, there is zero guarantee it will arrive. Transmission Control Protocol (TCP) solves this by enforcing a rigorous state machine inside the OS Kernel. It tracks sequence numbers, demands acknowledgments, and automatically retransmits lost data. To use sockets safely, C engineers must understand exactly how the Kernel's invisible TCP handshakes align with their User-Space C code.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day33-t2-sec-mechanics",
+          "title": "Internal Mechanics: The 3-Way Handshake"
+        },
+        {
+          "type": "text",
+          "block_id": "day33-t2-txt-mechanics",
+          "content": "<p>When a Client calls <code>connect()</code>, it does not instantly link to the server. The OS generates a <code>SYN</code> (Synchronize) packet and sends it. The Server's OS receives it, places the connection in a \"SYN_RCVD\" state in the backlog queue, and replies with <code>SYN-ACK</code>. The Client replies with <code>ACK</code> (Acknowledge). <strong>Only when this 3-Way Handshake physically completes</strong> does the Server OS mark the connection as \"ESTABLISHED\". At that exact millisecond, your C code's <code>accept()</code> function unblocks and returns the client File Descriptor. If the handshake fails, <code>accept()</code> remains completely oblivious and keeps sleeping.</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day33-t2-svg-mechanics",
+          "caption": "A chronological sequence diagram illustrating the Client connect() handshake synchronizing with the Server accept() API.",
+          "alt_text": "Sequence diagram showing Client calling connect(), triggering SYN, Server replying SYN-ACK, Client sending ACK, and finally Server accept() returning the socket.",
+          "svg_code": "<svg viewBox='0 60 600 240' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='300' fill='var(--bg-card)'/><line x1='150' y1='40' x2='150' y2='280' stroke='var(--accent)' stroke-width='2' stroke-dasharray='4,4'/><text x='150' y='30' fill='var(--accent)' font-family='monospace' font-weight='bold' text-anchor='middle'>Client OS</text><line x1='450' y1='40' x2='450' y2='280' stroke='var(--success-border)' stroke-width='2' stroke-dasharray='4,4'/><text x='450' y='30' fill='var(--success-border)' font-family='monospace' font-weight='bold' text-anchor='middle'>Server OS</text><rect x='80' y='60' width='140' height='25' fill='var(--bg-hover)'/><text x='150' y='77' fill='var(--text-primary)' font-family='monospace' font-size='10' text-anchor='middle'>connect() called</text><rect x='380' y='60' width='140' height='25' fill='var(--bg-hover)'/><text x='450' y='77' fill='var(--text-primary)' font-family='monospace' font-size='10' text-anchor='middle'>listen(fd)</text><path d='M 150 110 L 440 140' stroke='var(--warning-border)' stroke-width='2' marker-end='url(#arrow-warn)'/><text x='300' y='120' fill='var(--warning-border)' font-family='monospace' font-size='10' font-weight='bold' text-anchor='middle'>SYN</text><path d='M 450 150 L 160 180' stroke='var(--warning-border)' stroke-width='2' marker-end='url(#arrow-warn)'/><text x='300' y='160' fill='var(--warning-border)' font-family='monospace' font-size='10' font-weight='bold' text-anchor='middle'>SYN-ACK</text><path d='M 150 190 L 440 220' stroke='var(--success-border)' stroke-width='2' marker-end='url(#arrow-succ)'/><text x='300' y='200' fill='var(--success-border)' font-family='monospace' font-size='10' font-weight='bold' text-anchor='middle'>ACK</text><rect x='380' y='240' width='140' height='25' fill='rgba(16, 185, 129, 0.2)' stroke='var(--success-border)'/><text x='450' y='257' fill='var(--success-border)' font-family='monospace' font-size='10' font-weight='bold' text-anchor='middle'>accept() unblocks!</text><defs><marker id='arrow-warn' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--warning-border)'/></marker><marker id='arrow-succ' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--success-border)'/></marker></defs></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day33-t2-sec-trench-story",
+          "title": "Production Trench Story"
+        },
+        {
+          "type": "callout",
+          "block_id": "day33-t2-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage: The TCP Stream Illusion",
+          "content": "<p>A junior engineer wrote a JSON parser for a server. The client called <code>send(fd, \"{payload: 1}\", 14)</code> and immediately called <code>send(fd, \"{payload: 2}\", 14)</code>. The server executed <code>read(fd, buffer, 1024)</code>, expecting to get the first JSON object. Instead, the server crashed with a JSON syntax error. Why? <strong>TCP does not have message boundaries.</strong> It is a continuous, fluid byte-stream. The OS Kernel is allowed to concatenate those two <code>send()</code> calls into a single physical network packet to save bandwidth (Nagle's Algorithm). The server's <code>read()</code> pulled 28 bytes containing <code>\"{payload: 1}{payload: 2}\"</code> into the buffer. The JSON parser choked. In TCP, C engineers MUST design Application-Layer framing (like prefixing every message with a 4-byte integer representing length) to manually slice the raw byte stream back into discrete logical messages.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day33-t2-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day33-t2-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "What is the relationship between the TCP 3-Way Handshake and the `accept()` system call?",
+              "options": [
+                { "id": "t2-q1-a", "text": "The `accept()` function manually sends the SYN-ACK packet.", "is_correct": false, "explanation": "The OS Kernel handles the entire handshake autonomously." },
+                { "id": "t2-q1-b", "text": "The OS Kernel performs the 3-Way Handshake completely in the background. `accept()` remains blocked until the final ACK is received and the connection state reaches 'ESTABLISHED'.", "is_correct": true, "explanation": "User-space C code does not participate in TCP state negotiation; it merely reaps the completed connections." },
+                { "id": "t2-q1-c", "text": "If the handshake fails, `accept()` returns a specific error code.", "is_correct": false, "explanation": "If it fails, `accept()` just keeps waiting for the next valid client." },
+                { "id": "t2-q1-d", "text": "`accept()` initiates the handshake by sending the SYN packet.", "is_correct": false, "explanation": "The Client initiates the SYN via `connect()`." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Handling Endianness with sockaddr_in Structures",
+        "category": "Interoperability",
+        "complexity": "Intermediate",
+        "standard": "POSIX",
+        "read_time": 25,
+        "prerequisites": ["day-12-topic-1", "day-33-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day33-t3-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day33-t3-txt-strategic-problem",
+          "content": "<p>When you tell the OS to bind to Port 8080, you must pass that integer into the <code>bind()</code> function via a C struct. However, the internet was standardized on Big-Endian architecture (Network Byte Order), while almost all modern desktop CPUs (x86_64, ARM) are Little-Endian (Host Byte Order). If you write <code>addr.sin_port = 8080;</code>, your Little-Endian CPU stores the bytes backwards in RAM. When the OS reads that struct to configure the network card, it interprets those backward bytes in Big-Endian format, resulting in your server binding to Port 36895 instead of 8080. You must explicitly translate all integers crossing the network boundary.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day33-t3-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day33-t3-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;arpa/inet.h&gt;</span>\n\n<span class=\"syntax-kw\">struct</span> sockaddr_in addr;\naddr.sin_port = htons(8080);\naddr.sin_addr.s_addr = htonl(INADDR_ANY);\ninet_pton(AF_INET, <span class=\"syntax-str\">\"192.168.1.5\"</span>, &amp;addr.sin_addr);",
+          "description": "The macros and structures used to configure IP endpoints safely across CPU architectures.",
+          "parameters": [
+            { "name": "htons", "type": "Macro", "description": "Host TO Network Short. Flips a 16-bit integer (Port) from Host Endianness to Network Endianness." },
+            { "name": "htonl", "type": "Macro", "description": "Host TO Network Long. Flips a 32-bit integer (IP Address)." },
+            { "name": "inet_pton", "type": "Function", "description": "Converts a human-readable IP string into a raw Network Byte Order integer." }
+          ],
+          "returns": { "type": "N/A", "description": "N/A" },
+          "complexity": "O(1) bitwise shifting operations.",
+          "exceptions": "Failing to use htons() will silently compile, but the application will behave completely irrationally."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day33-t3-sec-mechanics",
+          "title": "Internal Mechanics: Struct Polymorphism"
+        },
+        {
+          "type": "text",
+          "block_id": "day33-t3-txt-mechanics",
+          "content": "<p>The <code>bind()</code> function was invented before C supported <code>void*</code>. It takes a generic <code>struct sockaddr*</code>. But <code>sockaddr</code> is a generic container; it doesn't know about IP addresses. To configure an IPv4 address, you must populate a <code>struct sockaddr_in</code> (which is explicitly engineered to be the exact same byte-size as <code>sockaddr</code>). Once populated with your <code>htons()</code> translated data, you forcefully cast the pointer: <code>(struct sockaddr*)&amp;addr</code>. The OS Kernel looks at the first 2 bytes (the <code>sin_family</code> field) to determine how to parse the rest of the generic struct. This is manual, C-style polymorphism.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day33-t3-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day33-t3-txt-debug-intro",
+          "content": "<p>Analyze the following broken snippet. Find the vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day33-t3-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The Missing Translation",
+          "code": "#include &lt;sys/socket.h&gt;\n#include &lt;netinet/in.h&gt;\n#include &lt;stdio.h&gt;\n\nvoid start_server() {\n    int fd = socket(AF_INET, SOCK_STREAM, 0);\n    \n    struct sockaddr_in addr = {0};\n    addr.sin_family = AF_INET;\n    \n    // Engineer sets the port. No compiler warnings are generated.\n    addr.sin_port = 8080;\n    addr.sin_addr.s_addr = INADDR_ANY;\n    \n    bind(fd, (struct sockaddr*)&addr, sizeof(addr));\n    listen(fd, 10);\n    printf(\"Listening...\\n\");\n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day33-t3-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "The integer 8080 in hexadecimal is `0x1F90`. On a Little-Endian machine, it is stored in RAM as `0x90 0x1F`. Because `htons()` was omitted, the network stack reads those bytes in Big-Endian order, interpreting it as `0x901F`. `0x901F` in decimal is 36895. The server successfully bound to Port 36895. When clients attempt to connect to Port 8080, they receive 'Connection Refused'. Fix: You must strictly assign `addr.sin_port = htons(8080);`." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day33-t3-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day33-t3-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "Why does the `bind()` system call demand a cast to `(struct sockaddr*)` when configuring an IPv4 socket?",
+              "options": [
+                { "id": "t3-q1-a", "text": "Because the Sockets API was designed to support multiple protocols (IPv4, IPv6, UNIX Domain Sockets). `sockaddr` acts as a generic base class. You configure the specific `sockaddr_in` struct, and cast it down so the universal `bind` function can accept it.", "is_correct": true, "explanation": "This C-style polymorphism allows one API to handle diverse network topologies." },
+                { "id": "t3-q1-b", "text": "It encrypts the IP address.", "is_correct": false, "explanation": "Casting does not alter data." },
+                { "id": "t3-q1-c", "text": "It converts the struct to Network Byte Order.", "is_correct": false, "explanation": "Casting does not alter endianness; `htons` does." },
+                { "id": "t3-q1-d", "text": "To satisfy the compiler's Strict Aliasing rule.", "is_correct": false, "explanation": "Actually, `sockaddr` casts are specifically engineered to bypass strict aliasing safely." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

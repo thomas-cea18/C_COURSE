@@ -1,0 +1,240 @@
+{
+  "day": 26,
+  "module": "7: POSIX Systems & Process Control",
+  "topics": [
+    {
+      "header_hub": {
+        "title": "The Lifecycle of a Process and the PID Table",
+        "category": "Architecture",
+        "complexity": "Intermediate",
+        "standard": "Linux ABI",
+        "read_time": 25,
+        "prerequisites": ["day-25-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day26-t1-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day26-t1-txt-strategic-problem",
+          "content": "<p>When you spawn a process using <code>fork()</code>, the OS Kernel does not just blindly throw the code onto the CPU. It must meticulously track the process's memory maps, open file descriptors, CPU priority, and hardware state. It does this by creating a <strong>Process Control Block (PCB)</strong>—known in Linux as the <code>task_struct</code>. Every active process is registered in a central OS array called the <strong>PID Table</strong>. Because memory is finite, the PID table has a hard limit (historically 32,768). To build robust multiprocessing architectures, engineers must understand how a process transitions through the OS state machine from creation, to execution, to suspension, and finally, to termination.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day26-t1-sec-mechanics",
+          "title": "Internal Mechanics: State Transitions"
+        },
+        {
+          "type": "text",
+          "block_id": "day26-t1-txt-mechanics",
+          "content": "<p>A process rarely spends its entire life actively executing on the CPU. It rapidly transitions through several core states. <strong>Running (R):</strong> The process is currently executing instructions or sitting in the queue waiting for a CPU core. <strong>Sleeping (S/D):</strong> The process executed a blocking syscall (like <code>read()</code> or <code>sleep()</code>) and the OS physically removed it from the CPU until hardware data arrives. <strong>Stopped (T):</strong> The process was explicitly paused by a signal (like <code>SIGSTOP</code> or pressing Ctrl+Z in a terminal). <strong>Zombie (Z):</strong> The process has completely finished executing and died, but its exit status is still sitting in the PID table waiting for its Parent to acknowledge its death.</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day26-t1-svg-mechanics",
+          "caption": "A state machine diagram showing process execution states: Running, Sleeping, Stopped, and Zombie.",
+          "alt_text": "Visual showing process states. Running transitions to Sleeping via blocking syscalls. Running transitions to Stopped via Signals. Running transitions to Zombie upon calling exit().",
+          "svg_code": "<svg viewBox='0 0 600 250' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='250' fill='var(--bg-card)'/><g transform='translate(220, 20)'><rect x='0' y='0' width='160' height='60' fill='rgba(16, 185, 129, 0.2)' stroke='var(--success-border)' stroke-width='2' rx='30'/><text x='80' y='35' fill='var(--success-border)' font-family='monospace' font-weight='bold' text-anchor='middle'>Running (R)</text></g><g transform='translate(20, 150)'><rect x='0' y='0' width='160' height='60' fill='rgba(14, 165, 233, 0.2)' stroke='var(--accent)' stroke-width='2' rx='4'/><text x='80' y='35' fill='var(--accent)' font-family='monospace' font-weight='bold' text-anchor='middle'>Sleeping (S/D)</text></g><g transform='translate(220, 150)'><rect x='0' y='0' width='160' height='60' fill='rgba(245, 158, 11, 0.2)' stroke='var(--warning-border)' stroke-width='2' rx='4'/><text x='80' y='35' fill='var(--warning-border)' font-family='monospace' font-weight='bold' text-anchor='middle'>Stopped (T)</text></g><g transform='translate(420, 150)'><rect x='0' y='0' width='160' height='60' fill='rgba(239, 68, 68, 0.2)' stroke='var(--danger-border)' stroke-width='2' rx='4'/><text x='80' y='35' fill='var(--danger-border)' font-family='monospace' font-weight='bold' text-anchor='middle'>Zombie (Z)</text></g><path d='M 230 70 L 130 140' stroke='var(--accent)' stroke-width='2' fill='none' marker-end='url(#arrow-acc)'/><text x='130' y='100' fill='var(--accent)' font-size='10' font-family='monospace'>read() / sleep()</text><path d='M 150 150 L 250 80' stroke='var(--success-border)' stroke-width='2' fill='none' marker-end='url(#arrow-succ)'/><text x='230' y='125' fill='var(--success-border)' font-size='10' font-family='monospace'>Data Arrives</text><path d='M 300 80 L 300 140' stroke='var(--warning-border)' stroke-width='2' fill='none' marker-end='url(#arrow-warn)'/><text x='305' y='110' fill='var(--warning-border)' font-size='10' font-family='monospace'>SIGSTOP</text><path d='M 370 70 L 470 140' stroke='var(--danger-border)' stroke-width='3' fill='none' marker-end='url(#arrow-danger)'/><text x='430' y='100' fill='var(--danger-border)' font-size='10' font-family='monospace' font-weight='bold'>exit()</text><defs><marker id='arrow-acc' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--accent)'/></marker><marker id='arrow-succ' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--success-border)'/></marker><marker id='arrow-warn' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--warning-border)'/></marker><marker id='arrow-danger' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--danger-border)'/></marker></defs></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day26-t1-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day26-t1-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "What physically happens to a process inside the OS when it invokes a blocking system call like `read()` and there is no network data available yet?",
+              "options": [
+                { "id": "t1-q1-a", "text": "The process enters an infinite `while` loop on the CPU.", "is_correct": false, "explanation": "That describes 'busy-waiting' or a spinlock, which burns CPU cycles. Blocking syscalls do not burn CPU." },
+                { "id": "t1-q1-b", "text": "The Kernel transitions the process from the 'Running' state to the 'Sleeping' state. It is physically removed from the CPU's run queue, consuming 0% CPU, and is only placed back into the run queue when a hardware interrupt signals data has arrived.", "is_correct": true, "explanation": "This fundamental transition is why asynchronous and event-driven architectures are required for scaling." },
+                { "id": "t1-q1-c", "text": "The process becomes a Zombie.", "is_correct": false, "explanation": "Zombies are dead processes waiting to be reaped, not sleeping processes waiting for data." },
+                { "id": "t1-q1-d", "text": "The Kernel terminates the process.", "is_correct": false, "explanation": "The Kernel waits indefinitely (or until a timeout) for the data." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Reaping Exit Statuses using wait() and waitpid()",
+        "category": "API Mechanics",
+        "complexity": "Intermediate",
+        "standard": "POSIX",
+        "read_time": 30,
+        "prerequisites": ["day-25-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day26-t2-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day26-t2-txt-strategic-problem",
+          "content": "<p>When a Child process finishes its work and calls <code>exit(0)</code>, it dies. Its Virtual Memory is unmapped, its File Descriptors are closed, and its CPU execution ceases completely. However, its <strong>Process Control Block (PCB)</strong> remains permanently locked inside the OS Kernel's PID table. Why? Because the OS assumes the Parent process needs to know <em>how</em> the child died. Did it exit cleanly? Did it crash via a Segmentation Fault? Did it exit with an error code? The Kernel holds this \"exit status\" in the PID table indefinitely. It is the absolute responsibility of the Parent process to explicitly request this status from the Kernel. Once read, the Kernel finally deletes the PCB. We extract this status using the <code>waitpid()</code> system call.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day26-t2-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day26-t2-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;sys/wait.h&gt;</span>\n\n<span class=\"syntax-kw\">int</span> wstatus;\n<span class=\"syntax-ty\">pid_t</span> finished_pid = waitpid(target_pid, &amp;wstatus, 0);\n\n<span class=\"syntax-kw\">if</span> (WIFEXITED(wstatus)) {\n    <span class=\"syntax-kw\">int</span> code = WEXITSTATUS(wstatus);\n}",
+          "description": "The system call used by a Parent to pause execution until a Child terminates, allowing the Parent to extract the exit code.",
+          "parameters": [
+            { "name": "target_pid", "type": "pid_t", "description": "The specific Child PID to wait for. Pass -1 to wait for ANY child to finish." },
+            { "name": "wstatus", "type": "int*", "description": "An out-parameter pointer. The Kernel populates this integer with bit-packed data representing exactly how the child died." },
+            { "name": "options", "type": "int", "description": "Flags like WNOHANG, which forces waitpid to return immediately (non-blocking) if the child is still alive." }
+          ],
+          "returns": { "type": "pid_t", "description": "Returns the PID of the terminated child, 0 if WNOHANG was used and the child is still running, or -1 on error." },
+          "complexity": "By default, it physically blocks the Parent thread. WNOHANG makes it O(1) polling.",
+          "exceptions": "If you call waitpid() on a PID that is not your direct child, it fails with ECHILD."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day26-t2-sec-mechanics",
+          "title": "Internal Mechanics: Bit-Packed Status"
+        },
+        {
+          "type": "text",
+          "block_id": "day26-t2-txt-mechanics",
+          "content": "<p>The integer returned into <code>wstatus</code> is not a simple number; it is a bit-packed payload. You cannot just read <code>if (wstatus == 0)</code>. You must pass <code>wstatus</code> through POSIX extraction macros. First, use <code>WIFEXITED(wstatus)</code> to check if the child died a natural death (called <code>exit()</code>). If true, use <code>WEXITSTATUS(wstatus)</code> to extract the 8-bit exit code (0-255). Alternatively, if the child was murdered by the OS (e.g., Segfault), use <code>WIFSIGNALED(wstatus)</code> to detect it, and <code>WTERMSIG(wstatus)</code> to extract the exact signal number (e.g., Signal 11 for SIGSEGV) that killed it.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day26-t2-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day26-t2-cb-waitpid",
+          "language": "c",
+          "header": "Spawning and Reaping a Process Pool (Assessment Check)",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;stdlib.h&gt;\n#include &lt;unistd.h&gt;\n#include &lt;sys/wait.h&gt;\n\nint main() {\n    int num_children = 5;\n    \n    // 1. SPawning Phase\n    for (int i = 0; i < num_children; i++) {\n        pid_t pid = fork();\n        if (pid == 0) {\n            // CHILD PROCESS\n            printf(\"[Child %d] Executing heavy computation...\\n\", getpid());\n            sleep(1); // Simulate work\n            \n            // Exit with a unique code (0-255) based on their loop index\n            exit(100 + i); \n        }\n    }\n    \n    // 2. REAPING PHASE (Parent executes this)\n    // We must collect exactly 5 exit statuses.\n    for (int i = 0; i < num_children; i++) {\n        int wstatus;\n        // Passing -1 means \"Wait for ANY of my children to die\"\n        pid_t dead_child = waitpid(-1, &wstatus, 0);\n        \n        if (dead_child > 0) {\n            if (WIFEXITED(wstatus)) {\n                // Extract the clean 8-bit exit code\n                int exit_code = WEXITSTATUS(wstatus);\n                printf(\"[Parent] Reaped Child %d. Exit Code: %d\\n\", dead_child, exit_code);\n            } else if (WIFSIGNALED(wstatus)) {\n                // The child was violently killed by a signal\n                int sig = WTERMSIG(wstatus);\n                printf(\"[Parent] Child %d crashed. Signal: %d\\n\", dead_child, sig);\n            }\n        }\n    }\n    \n    printf(\"[Parent] All children successfully reaped. Exiting.\\n\");\n    return 0;\n}"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day26-t2-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day26-t2-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "Why is it mathematically incorrect to directly read the integer value of `wstatus` after a `waitpid()` call (e.g., `if (wstatus == 0)`)?",
+              "options": [
+                { "id": "t2-q1-a", "text": "Because `wstatus` is an array pointer.", "is_correct": false, "explanation": "It is a standard 32-bit integer." },
+                { "id": "t2-q1-b", "text": "Because the OS Kernel packs multiple pieces of data (exit code, termination signals, core dump flags) into specific bits of that single integer. You MUST use POSIX macros like `WIFEXITED` and `WEXITSTATUS` to securely shift and mask the bits to extract the true values.", "is_correct": true, "explanation": "Direct comparison evaluates the entire bit-packed payload, leading to completely false logical evaluations." },
+                { "id": "t2-q1-c", "text": "Because the integer is stored in Big-Endian format.", "is_correct": false, "explanation": "Endianness is irrelevant here; it's a bit-packing issue." },
+                { "id": "t2-q1-d", "text": "Because it violates Strict Aliasing.", "is_correct": false, "explanation": "Strict Aliasing applies to pointer type punning, not evaluating integers." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Zombie Processes vs Orphan Processes",
+        "category": "System Resiliency",
+        "complexity": "Advanced",
+        "standard": "POSIX",
+        "read_time": 25,
+        "prerequisites": ["day-26-t2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day26-t3-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day26-t3-txt-strategic-problem",
+          "content": "<p>Systems engineers must account for chronological chaos. What happens if a Child process finishes its work, but the Parent process is stuck in an infinite loop and forgets to call <code>waitpid()</code>? Or, conversely, what happens if the Parent process crashes and dies instantly, while its Child process is still in the middle of executing a 10-minute database query? The OS Kernel must have fallback mechanisms to manage these broken hierarchies to prevent the entire operating system from collapsing under the weight of lost process state. These scenarios create <strong>Zombies</strong> and <strong>Orphans</strong>.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day26-t3-sec-mechanics",
+          "title": "Internal Mechanics: Zombies and init(1)"
+        },
+        {
+          "type": "text",
+          "block_id": "day26-t3-txt-mechanics",
+          "content": "<p><strong>Zombie (Unreaped Child):</strong> A child process has terminated, but the parent has not yet called <code>waitpid()</code>. The process consumes 0 RAM and 0 CPU, but its PCB consumes exactly 1 slot in the system's PID table. If a parent spawns and ignores thousands of children, the PID table fills up. Future <code>fork()</code> calls by <em>any</em> user on the server will fail with <code>EAGAIN</code>. You cannot <code>kill -9</code> a Zombie because it is already dead.<br><br><strong>Orphan (Dead Parent):</strong> A parent terminates before its child. The child is still running. The OS cannot allow a process to exist without a parent to eventually read its exit code (which would create a permanent Zombie). The Kernel intervenes and forcefully <strong>re-parents</strong> the Orphan to PID 1 (the <code>init</code> or <code>systemd</code> process). PID 1 has a special, infinite background loop that automatically calls <code>wait()</code> on any child that dies, securely cleaning up Orphans the moment they finish their work.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day26-t3-sec-trench-story",
+          "title": "Production Trench Story"
+        },
+        {
+          "type": "callout",
+          "block_id": "day26-t3-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage: The SSH Lockout",
+          "content": "<p>A C-based web server handled incoming HTTP requests by executing <code>fork()</code> and running a CGI parsing script. The parent server immediately returned to listening for new requests but failed to call <code>waitpid()</code>. Everything ran perfectly for 3 weeks. Suddenly, the server stopped responding. The DevOps engineer tried to SSH into the machine, but the SSH connection instantly failed with \"Resource temporarily unavailable\". The server had hit the exact 32,768 PID limit. It was filled with 32,700 Zombie processes. Because <code>sshd</code> uses <code>fork()</code> to spawn a shell for incoming logins, it physically could not allocate a PID to let the admin investigate. The only solution was a hard physical reboot of the server rack. <strong>Always reap your children.</strong></p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day26-t3-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day26-t3-txt-debug-intro",
+          "content": "<p>Analyze the following broken snippet. Find the vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day26-t3-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The Infinite Spawner",
+          "code": "#include &lt;unistd.h&gt;\n#include &lt;stdlib.h&gt;\n\nvoid run_server() {\n    while (1) {\n        // Simulate an incoming connection\n        sleep(1);\n        \n        pid_t pid = fork();\n        \n        if (pid == 0) {\n            // Child handles the request and exits instantly\n            exit(0);\n        }\n        \n        // DANGER: Parent loops back immediately. No waitpid()!\n    }\n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day26-t3-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "The parent loops forever, spawning a child every 1 second. The child exits immediately. Because the parent never executes `waitpid()`, the Kernel leaves every dead child's Process Control Block inside the PID table. The application generates 1 Zombie per second. In exactly 9 hours (32,768 seconds), the server will exhaust its PID limits and trigger an OS-wide failure. Fix: Since the parent's `while(1)` loop cannot be blocked by `waitpid()`, the parent MUST configure an Asynchronous Signal Handler to catch `SIGCHLD` (a signal the Kernel fires anytime a child dies). Inside the signal handler, the parent can execute `waitpid(-1, NULL, WNOHANG)` to silently reap the zombies in the background without interrupting the main server loop." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day26-t3-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day26-t3-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "What is the precise definition of a Zombie process in a POSIX system?",
+              "options": [
+                { "id": "t3-q1-a", "text": "A process that consumes 100% of the CPU in an infinite loop.", "is_correct": false, "explanation": "That is an active, spinning process, not a Zombie." },
+                { "id": "t3-q1-b", "text": "A process that has finished executing and terminated, but its Parent has failed to call `waitpid()`. It consumes zero RAM and CPU, but permanently occupies a slot in the Kernel's PID table, threatening to exhaust system limits.", "is_correct": true, "explanation": "Zombies are harmless individually, but architecturally fatal at scale." },
+                { "id": "t3-q1-c", "text": "A Child process whose Parent has terminated, leaving it to run indefinitely.", "is_correct": false, "explanation": "That is an Orphan process, not a Zombie." },
+                { "id": "t3-q1-d", "text": "A process that ignores the `SIGKILL` signal.", "is_correct": false, "explanation": "Zombies ignore `SIGKILL` because they are already dead, but ignoring a signal isn't what makes them a Zombie." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

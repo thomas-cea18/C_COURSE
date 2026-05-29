@@ -1,0 +1,298 @@
+{
+  "day": 42,
+  "module": "15: Binary Security & Exploit Mitigation",
+  "topics": [
+    {
+      "header_hub": {
+        "title": "Stack Smashing and Buffer Overflows",
+        "category": "Security",
+        "complexity": "Advanced",
+        "standard": "x86_64 ABI",
+        "read_time": 35,
+        "prerequisites": ["day-16-topic-1", "day-5-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day42-t1-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day42-t1-txt-strategic-problem",
+          "content": "<p>In managed languages like Java or Go, attempting to write past the end of an array triggers a safe, managed exception. In C, the hardware blindly obeys. If you allocate a 64-byte array on the Stack, and copy 100 bytes of user input into it, the CPU simply overwrites the 36 bytes sitting physically adjacent to the array in RAM. What sits adjacent to local variables on the Stack? <strong>The CPU Execution State.</strong> Specifically, the saved Base Pointer (RBP) and the Return Address (RIP). If a hacker carefully crafts their input, they can overwrite the Return Address with a pointer to their own malicious code. When the C function executes <code>return</code>, the CPU is violently hijacked, granting the attacker complete remote control over your server. This is the <strong>Buffer Overflow</strong>.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day42-t1-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day42-t1-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;string.h&gt;</span>\n<span class=\"syntax-kw\">char</span> *strcpy(<span class=\"syntax-kw\">char</span> *dest, <span class=\"syntax-kw\">const char</span> *src);\n<span class=\"syntax-kw\">char</span> *gets(<span class=\"syntax-kw\">char</span> *s);\n<span class=\"syntax-kw\">int</span> sprintf(<span class=\"syntax-kw\">char</span> *str, <span class=\"syntax-kw\">const char</span> *format, ...);",
+          "description": "The catastrophic legacy C functions that inherently cause Buffer Overflows.",
+          "parameters": [
+            { "name": "gets(s)", "type": "Function", "description": "Reads user input from standard input until a newline. Mathematically impossible to use safely because it has no bounds limit parameter." },
+            { "name": "strcpy(dest, src)", "type": "Function", "description": "Copies bytes until it encounters a '\\0'. If src is larger than dest, it violently overflows memory." }
+          ],
+          "returns": { "type": "char *", "description": "Returns a pointer to the destination buffer." },
+          "complexity": "O(N) memory overwrite. Infinite security risk.",
+          "exceptions": "These functions are deprecated in modern C. You must use strncpy, fgets, or snprintf."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day42-t1-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day42-t1-txt-mechanics",
+          "content": "<p>When a function is called, the x86_64 architecture pushes the Instruction Pointer (where to go back to) onto the Stack. It then pushes the Base Pointer, and finally allocates space for local variables (like <code>char buffer[64]</code>). Because the Stack grows <em>downward</em> in memory (towards address 0), but arrays are written <em>upward</em> (towards infinity), overflowing the buffer pushes data straight up into the saved registers. To execute an exploit, an attacker feeds the program a string containing <strong>Shellcode</strong> (raw hexadecimal assembly instructions), followed by padding, followed by the exact memory address of their shellcode. The <code>ret</code> instruction pops the attacker's address into the CPU, and the server begins executing the malicious assembly.</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day42-t1-svg-mechanics",
+          "caption": "The memory topology of a Stack Smashing attack.",
+          "alt_text": "Visual showing the Stack Frame. The buffer overflows upward, filling the space with 'A's, and overwriting the saved RIP with the memory address of the attacker's Shellcode.",
+          "svg_code": "<svg viewBox='0 0 600 250' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='250' fill='var(--bg-card)'/><g transform='translate(20, 20)'><rect x='0' y='0' width='160' height='210' fill='none' stroke='var(--border-light)' stroke-width='2' rx='4'/><text x='80' y='25' fill='var(--text-primary)' font-family='monospace' font-weight='bold' text-anchor='middle'>Normal Stack Frame</text><rect x='10' y='40' width='140' height='80' fill='rgba(16, 185, 129, 0.2)' stroke='var(--success-border)'/><text x='80' y='80' fill='var(--text-primary)' font-family='monospace' font-size='10' text-anchor='middle'>Local Buffer [64]</text><rect x='10' y='130' width='140' height='30' fill='var(--bg-hover)' stroke='var(--border-light)'/><text x='80' y='150' fill='var(--text-secondary)' font-family='monospace' font-size='10' text-anchor='middle'>Saved RBP</text><rect x='10' y='170' width='140' height='30' fill='rgba(14, 165, 233, 0.2)' stroke='var(--accent)'/><text x='80' y='190' fill='var(--accent)' font-family='monospace' font-weight='bold' font-size='10' text-anchor='middle'>Saved RIP (Return)</text></g><path d='M195 125 L245 125' stroke='var(--danger-border)' stroke-width='4' marker-end='url(#arrow-danger)'/><text x='220' y='115' fill='var(--danger-border)' font-family='monospace' font-weight='bold' font-size='12' text-anchor='middle'>Overflow</text><g transform='translate(280, 20)'><rect x='0' y='0' width='160' height='210' fill='rgba(239, 68, 68, 0.1)' stroke='var(--danger-border)' stroke-width='2' rx='4'/><text x='80' y='25' fill='var(--danger-border)' font-family='monospace' font-weight='bold' text-anchor='middle'>Smashed Stack</text><rect x='10' y='40' width='140' height='80' fill='rgba(239, 68, 68, 0.2)' stroke='var(--danger-border)'/><text x='80' y='65' fill='var(--danger-border)' font-family='monospace' font-weight='bold' font-size='12' text-anchor='middle'>[ Shellcode ]</text><text x='80' y='95' fill='var(--text-secondary)' font-family='monospace' font-size='10' text-anchor='middle'>AAAAAAAAAAAAAAA</text><rect x='10' y='130' width='140' height='30' fill='rgba(239, 68, 68, 0.2)' stroke='var(--danger-border)'/><text x='80' y='150' fill='var(--danger-border)' font-family='monospace' font-size='10' text-anchor='middle'>AAAAAAAA (Padding)</text><rect x='10' y='170' width='140' height='30' fill='rgba(245, 158, 11, 0.2)' stroke='var(--warning-border)'/><text x='80' y='190' fill='var(--warning-border)' font-family='monospace' font-weight='bold' font-size='10' text-anchor='middle'>0x7FFFFFFFDE40</text></g><path d='M350 200 Q 480 200 480 150 Q 480 100 420 80' stroke='var(--warning-border)' stroke-width='3' fill='none' marker-end='url(#arrow-warn)' stroke-dasharray='4,4'/><text x='510' y='125' fill='var(--warning-border)' font-family='monospace' font-weight='bold' font-size='10' text-anchor='middle'>CPU Returns to</text><text x='510' y='140' fill='var(--warning-border)' font-family='monospace' font-weight='bold' font-size='10' text-anchor='middle'>Shellcode</text><defs><marker id='arrow-danger' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--danger-border)'/></marker><marker id='arrow-warn' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--warning-border)'/></marker></defs></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day42-t1-sec-trench-story",
+          "title": "Production Trench Story"
+        },
+        {
+          "type": "callout",
+          "block_id": "day42-t1-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage: The Morris Worm",
+          "content": "<p>In 1988, the first major internet worm brought down 10% of the world's connected computers. It exploited a buffer overflow in the UNIX <code>fingerd</code> daemon. The C code used the <code>gets()</code> function to read the incoming network request into a 512-byte array. The attacker sent a 536-byte request. The final bytes perfectly overwrote the return address on the stack, pointing the CPU to a payload consisting of precisely crafted VAX machine code. This code executed <code>/bin/sh</code> and spawned a reverse shell, giving the attacker root access. The worm then scanned the network and replicated itself to other servers. This catastrophic event forced the global deprecation of the <code>gets()</code> function, cementing Buffer Overflows as the deadliest vulnerability class in software history.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day42-t1-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day42-t1-cb-overflow",
+          "language": "c",
+          "header": "Anatomy of a Vulnerable Authentication Matrix",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;string.h&gt;\n#include &lt;stdlib.h&gt;\n\n// A highly sensitive hidden function that should never be executed\nvoid grant_root_access() {\n    printf(\"CRITICAL: Root Shell Spawned! Executing /bin/sh...\\n\");\n    system(\"/bin/sh\");\n}\n\nvoid check_authentication(char *network_payload) {\n    int is_authenticated = 0;\n    char password_buffer[16];\n    \n    // DANGER: strcpy does not check the length of 'network_payload'.\n    // If the attacker sends 32 bytes, the first 16 bytes fill the buffer.\n    // The next 4 bytes overwrite the 'is_authenticated' variable.\n    // The remaining bytes overwrite the RBP and RIP registers.\n    strcpy(password_buffer, network_payload);\n    \n    if (strcmp(password_buffer, \"SuperSecret\") == 0) {\n        is_authenticated = 1;\n    }\n    \n    // Because the overflow corrupted the stack, 'is_authenticated'\n    // might now be non-zero even if the password was wrong!\n    if (is_authenticated) {\n        printf(\"Access Granted.\\n\");\n    } else {\n        printf(\"Access Denied.\\n\");\n    }\n    \n    // If the attacker crafted their payload perfectly, when this function \n    // executes 'return', the CPU will jump directly to grant_root_access().\n}\n\nint main(int argc, char **argv) {\n    if (argc > 1) check_authentication(argv[1]);\n    return 0;\n}"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day42-t1-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day42-t1-txt-debug-intro",
+          "content": "<p>Analyze the following broken snippet. Find the vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day42-t1-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The Off-By-One Overwrite",
+          "code": "#include &lt;string.h&gt;\n#include &lt;stdio.h&gt;\n\nvoid copy_user_name(const char *input) {\n    char name[32];\n    \n    // Engineer wants to be perfectly safe, so they loop exactly up to the bounds.\n    int len = strlen(input);\n    if (len > 32) len = 32;\n    \n    for (int i = 0; i <= len; i++) {\n        // DANGER: Off-by-one vulnerability\n        name[i] = input[i];\n    }\n    \n    printf(\"Welcome, %s\\n\", name);\n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day42-t1-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "The engineer bounded `len` to exactly 32. But the loop condition is `i <= len`. If the user input is 32 characters long, the loop executes for `i = 0` through `i = 32`. That is 33 iterations. `name` is only 32 bytes long (indexed 0 to 31). The 33rd byte (`name[32]`) overflows perfectly into the adjacent memory location. In x86_64, a single byte overwrite is often enough to alter the least-significant byte of the saved Base Pointer (RBP). This causes a 'Stack Pivot', where the returning function pulls its variables from the attacker's buffer instead of the real stack, leading to a total compromise. Fix: `if (len > 31) len = 31;` or `i < len`." }
+          ]
+        },
+        {
+          "type": "callout",
+          "block_id": "day42-t1-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Strict Bounded Copying:</strong> Never use <code>strcpy</code>, <code>sprintf</code>, or <code>strcat</code>. You must universally mandate the use of <code>strncpy</code>, <code>snprintf</code>, and <code>strncat</code>, passing the absolute maximum byte boundary to every memory operation. Better yet, use OpenBSD's <code>strlcpy</code> to guarantee null-termination, which <code>strncpy</code> bizarrely does not.</li><li><strong>The NOP Sled:</strong> Hackers cannot always guess the exact hexadecimal address of their shellcode in RAM. To fix this, they prefix their shellcode with thousands of <code>\\x90</code> (NOP - No Operation) bytes. If their hijacked Return Address lands anywhere inside the NOP Sled, the CPU harmlessly slides down the sled until it impacts the malicious shellcode.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day42-t1-sec-qa",
+          "title": "Mastery Q&A"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day42-t1-qa-mastery",
+          "items": [
+            { "question": "What is 'Shellcode' exactly?", "answer": "Shellcode is a raw stream of machine-code assembly instructions represented as a C-string. It gets its name because its primary purpose is usually executing the `execve` syscall to spawn `/bin/sh`. A hacker compiles assembly code, extracts the hex bytes (e.g., `\\x31\\xc0\\x48\\xbb...`), and sends those bytes as the network payload." },
+            { "question": "Can I overflow memory allocated on the Heap (via malloc)?", "answer": "Yes. A Heap Overflow is different from a Stack Overflow. The Heap doesn't contain Return Addresses (RIP). Instead, overflowing the Heap overwrites `malloc`'s hidden metadata (like the boundaries of the Free List). When `free()` is later called on the corrupted chunk, the allocator is tricked into writing a malicious pointer into an arbitrary memory location, triggering the exploit." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day42-t1-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day42-t1-quiz-mastery",
+          "time_limit_seconds": 375,
+          "questions": [
+            {
+              "question": "What specifically enables a Stack Buffer Overflow to hijack the execution flow of a C program?",
+              "options": [
+                { "id": "t1-q1-a", "text": "Overwriting the global variables in the `.data` segment.", "is_correct": false, "explanation": "The `.data` segment is not adjacent to local stack variables." },
+                { "id": "t1-q1-b", "text": "Writing past the bounds of a local array allows the attacker to overwrite the saved Return Address (RIP) pushed onto the Stack during the function call. When the function executes `ret`, the CPU jumps to the attacker's injected address.", "is_correct": true, "explanation": "The mixing of raw data (the buffer) and control flow metadata (the RIP) on the same memory stack is the foundational vulnerability of the x86 architecture." },
+                { "id": "t1-q1-c", "text": "Overwriting the memory allocated by `malloc()`.", "is_correct": false, "explanation": "Malloc exists on the Heap, which requires a different exploit mechanism." },
+                { "id": "t1-q1-d", "text": "Triggering a Segmentation Fault.", "is_correct": false, "explanation": "A Segfault is a crash. An exploit requires the attacker to *prevent* the Segfault so their code actually runs." }
+              ]
+            },
+            {
+              "question": "Why is the C standard library function `gets()` mathematically impossible to use safely?",
+              "options": [
+                { "id": "t1-q2-a", "text": "It requires root privileges to execute.", "is_correct": false, "explanation": "It does not." },
+                { "id": "t1-q2-b", "text": "It only reads integers, not characters.", "is_correct": false, "explanation": "It reads characters." },
+                { "id": "t1-q2-c", "text": "The function signature `gets(char *s)` lacks a parameter specifying the maximum size of the buffer. If the user types 10,000 characters before pressing enter, `gets` will blindly write all 10,000 characters into memory, destroying the entire Stack.", "is_correct": true, "explanation": "This is why it was officially removed from the C11 standard. You must use `fgets(buf, size, stdin)`." },
+                { "id": "t1-q2-d", "text": "It does not null-terminate the string.", "is_correct": false, "explanation": "It does null-terminate, but only after destroying the surrounding memory." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Defense Defeat: ASLR, NX, and ROP Chains",
+        "category": "Security",
+        "complexity": "Elite",
+        "standard": "Linux ABI",
+        "read_time": 35,
+        "prerequisites": ["day-42-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day42-t2-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day42-t2-txt-strategic-problem",
+          "content": "<p>When Buffer Overflows shattered the internet, OS architects fought back. They introduced the <strong>NX Bit (No-eXecute)</strong>, physically marking the Stack as read/write, but NOT executable. If a hacker pushed shellcode to the Stack and jumped to it, the CPU threw a hardware exception. To prevent hackers from guessing where standard C functions lived, they introduced <strong>ASLR (Address Space Layout Randomization)</strong>, shifting the entire memory layout by random hexadecimal offsets every time the program booted. Hackers evolved. If they cannot execute their own code on the stack, they will simply use <em>your</em> code. By hijacking the return pointer and jumping into tiny, pre-existing fragments of executable assembly scattered across the `libc` library, attackers piece together a <strong>Return-Oriented Programming (ROP) Chain</strong>, achieving complete remote control without ever injecting a single byte of executable shellcode.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day42-t2-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day42-t2-api-main",
+          "signature": "$ gcc -fstack-protector-strong main.c -o app\n$ gcc -z noexecstack main.c -o app\n$ gcc -fPIE -pie main.c -o app",
+          "description": "Compiler flags dictating the binary security mitigations embedded into the ELF output.",
+          "parameters": [
+            { "name": "-fstack-protector", "type": "Defense", "description": "Injects a secret random integer (a Canary) between the buffer and the Return Address to detect overflows." },
+            { "name": "-z noexecstack", "type": "Defense", "description": "Enforces the NX (No-eXecute) bit on the stack memory pages via the ELF header." },
+            { "name": "-fPIE -pie", "type": "Defense", "description": "Position Independent Executable. Compiles the binary purely with relative offsets, allowing the OS to fully randomize its base address (ASLR)." }
+          ],
+          "returns": { "type": "N/A", "description": "N/A" },
+          "complexity": "Canaries incur a microscopic O(1) CPU check before every function return.",
+          "exceptions": "If an attacker can read memory before overflowing (an Information Leak), they can bypass ASLR and Canaries."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day42-t2-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day42-t2-txt-mechanics",
+          "content": "<p>A <strong>ROP Chain</strong> is a sequence of memory addresses written onto the stack by the attacker. Each address points to a \"Gadget\". A gadget is a tiny sequence of valid machine code already residing in the executable `.text` segment or <code>libc</code> that ends in the <code>ret</code> instruction (e.g., <code>pop rdi; ret;</code>). The attacker overwrites the saved RIP with the address of Gadget 1. The CPU executes Gadget 1, which pops a value off the stack into a register. Gadget 1 then executes <code>ret</code>. The CPU looks at the stack again, pops the NEXT address (Gadget 2), and jumps to it. By perfectly aligning a chain of gadgets and arguments on the Stack, the attacker effectively programs the CPU by stringing together thousands of tiny, pre-existing assembly fragments until they invoke <code>system(\"/bin/sh\")</code>.</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day42-t2-svg-mechanics",
+          "caption": "The execution flow of a Return-Oriented Programming (ROP) Chain.",
+          "alt_text": "Visual showing the Stack filled with Gadget Addresses. The CPU executes Gadget 1, hits 'ret', jumps to Gadget 2, hits 'ret', jumps to system().",
+          "svg_code": "<svg viewBox='0 0 600 250' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='250' fill='var(--bg-card)'/><g transform='translate(20, 20)'><rect x='0' y='0' width='160' height='210' fill='rgba(239, 68, 68, 0.1)' stroke='var(--danger-border)' stroke-width='2' rx='4'/><text x='80' y='25' fill='var(--danger-border)' font-family='monospace' font-weight='bold' text-anchor='middle'>Attacker Stack</text><rect x='10' y='40' width='140' height='30' fill='var(--bg-hover)' stroke='var(--border-light)'/><text x='80' y='60' fill='var(--text-primary)' font-family='monospace' font-size='10' text-anchor='middle'>Padding (AAA...)</text><rect x='10' y='80' width='140' height='30' fill='rgba(245, 158, 11, 0.2)' stroke='var(--warning-border)'/><text x='80' y='100' fill='var(--warning-border)' font-family='monospace' font-weight='bold' font-size='10' text-anchor='middle'>Addr: Gadget 1</text><rect x='10' y='120' width='140' height='30' fill='rgba(14, 165, 233, 0.2)' stroke='var(--accent)'/><text x='80' y='140' fill='var(--text-primary)' font-family='monospace' font-size='10' text-anchor='middle'>Data: \"/bin/sh\"</text><rect x='10' y='160' width='140' height='30' fill='rgba(16, 185, 129, 0.2)' stroke='var(--success-border)'/><text x='80' y='180' fill='var(--success-border)' font-family='monospace' font-weight='bold' font-size='10' text-anchor='middle'>Addr: system()</text></g><g transform='translate(350, 40)'><rect x='0' y='0' width='220' height='60' fill='none' stroke='var(--warning-border)' stroke-width='2' rx='4'/><text x='110' y='20' fill='var(--warning-border)' font-family='monospace' font-weight='bold' text-anchor='middle'>Gadget 1 (in libc)</text><text x='110' y='40' fill='var(--text-primary)' font-family='monospace' font-size='12' text-anchor='middle'>pop rdi; ret;</text></g><g transform='translate(350, 130)'><rect x='0' y='0' width='220' height='60' fill='none' stroke='var(--success-border)' stroke-width='2' rx='4'/><text x='110' y='20' fill='var(--success-border)' font-family='monospace' font-weight='bold' text-anchor='middle'>system() (in libc)</text><text x='110' y='40' fill='var(--text-primary)' font-family='monospace' font-size='12' text-anchor='middle'>Executes /bin/sh</text></g><path d='M150 95 Q 250 95 350 70' stroke='var(--warning-border)' stroke-width='2' fill='none' marker-end='url(#arrow-warn)' stroke-dasharray='4,4'/><path d='M380 50 Q 250 50 150 135' stroke='var(--accent)' stroke-width='2' fill='none' marker-end='url(#arrow-acc)' stroke-dasharray='4,4'/><text x='250' y='65' fill='var(--accent)' font-size='10'>RDI reads String</text><path d='M460 60 Q 460 100 460 130' stroke='var(--success-border)' stroke-width='3' fill='none' marker-end='url(#arrow-succ)'/><text x='480' y='105' fill='var(--success-border)' font-size='10'>CPU 'ret' Jump</text><defs><marker id='arrow-warn' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--warning-border)'/></marker><marker id='arrow-acc' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--accent)'/></marker><marker id='arrow-succ' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--success-border)'/></marker></defs></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day42-t2-sec-trench-story",
+          "title": "Production Trench Story"
+        },
+        {
+          "type": "callout",
+          "block_id": "day42-t2-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage: The Format String Leak",
+          "content": "<p>A secure C application had every compiler mitigation enabled: Stack Canaries, NX Bit, and ASLR. A hacker discovered a single line of vulnerable code: <code>printf(user_input);</code> instead of <code>printf(\"%s\", user_input);</code>. This is a Format String Vulnerability. The hacker sent the string <code>%p.%p.%p.%p</code>. The <code>printf</code> function blindly read up the stack and printed out raw hexadecimal memory pointers back to the user. One of those pointers was a known address inside <code>libc.so</code>. Because the attacker knew the exact offset of <code>system()</code> relative to that leaked address, they instantly calculated the randomized ASLR base address of <code>libc</code>. A moment later, they sent a buffer overflow payload targeting a different vulnerability. The overflow contained a perfectly calculated ROP chain built from the dynamically leaked ASLR addresses. The server was hijacked entirely. Defenses like ASLR are completely defeated by a single memory leak.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day42-t2-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day42-t2-cb-canary",
+          "language": "nasm",
+          "header": "Assembly Verification: The Stack Canary Check",
+          "code": "; When compiled with -fstack-protector, the Compiler injects assembly \n; into the Prologue and Epilogue of every vulnerable C function.\n\n; --- FUNCTION PROLOGUE ---\npush   rbp\nmov    rbp, rsp\nsub    rsp, 0x40                 ; Allocate buffer space\n\n; The Canary (stored in the fs segment) is copied to the stack \n; exactly above the local array, but below the saved RBP/RIP.\nmov    rax, QWORD PTR fs:0x28    \nmov    QWORD PTR [rbp-0x8], rax  ; Injecting the Canary Secret\n\n; ... [ User C Code Executes Here (e.g. strcpy) ] ...\n\n; --- FUNCTION EPILOGUE ---\nmov    rax, QWORD PTR [rbp-0x8]  ; Read the Canary back from the stack\nxor    rax, QWORD PTR fs:0x28    ; Compare it to the original master secret\nje     .safe_return              ; If it matches (Zero), the stack is safe\n\n; If it does NOT match, the attacker's buffer overflow overwrote the Canary!\ncall   __stack_chk_fail          ; Violently aborts the program immediately\n\n.safe_return:\nleave\nret"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day42-t2-sec-qa",
+          "title": "Mastery Q&A"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day42-t2-qa-mastery",
+          "items": [
+            { "question": "If ASLR randomizes the memory, how does the OS Linker find functions?", "answer": "The OS manages a virtual mapping table. While the base address shifts by 1.5 Gigabytes at random, the internal distances (offsets) between functions remain mathematically identical. If `printf` is exactly 0x2400 bytes after `malloc` on disk, it will always be exactly 0x2400 bytes after `malloc` in RAM, regardless of ASLR." },
+            { "question": "Can ROP chains execute complex logic?", "answer": "Yes. ROP is Turing Complete. By stringing together gadgets, attackers can write `for` loops, memory allocations, and conditional branches entirely utilizing code fragments belonging to standard libraries." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day42-t2-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day42-t2-quiz-mastery",
+          "time_limit_seconds": 375,
+          "questions": [
+            {
+              "question": "What is the primary architectural goal of Return-Oriented Programming (ROP)?",
+              "options": [
+                { "id": "t2-q1-a", "text": "To inject custom assembly into the `.text` segment.", "is_correct": false, "explanation": "The `.text` segment is strictly Read-Only." },
+                { "id": "t2-q1-b", "text": "To bypass the NX (No-eXecute) bit. Because the OS forbids executing attacker-injected code on the Stack, the attacker redirects the CPU to execute tiny fragments of valid, OS-approved executable code already residing in memory.", "is_correct": true, "explanation": "ROP leverages the application's own valid code against it." },
+                { "id": "t2-q1-c", "text": "To bypass Stack Canaries.", "is_correct": false, "explanation": "ROP does not bypass Canaries. Canaries prevent the Return Address from being overwritten in the first place." },
+                { "id": "t2-q1-d", "text": "To encrypt the payload.", "is_correct": false, "explanation": "ROP has nothing to do with encryption." }
+              ]
+            },
+            {
+              "question": "How does compiling a C binary with `-fstack-protector` mitigate buffer overflows?",
+              "options": [
+                { "id": "t2-q2-a", "text": "It checks the length of all strings dynamically.", "is_correct": false, "explanation": "It doesn't alter C library functions like `strcpy`." },
+                { "id": "t2-q2-b", "text": "It physically randomizes the location of variables.", "is_correct": false, "explanation": "That is ASLR." },
+                { "id": "t2-q2-c", "text": "The compiler injects a randomized 'Canary' integer between the local variables and the saved Return Address. Before the function executes `ret`, it validates the Canary. If the attacker overflows the buffer to reach the Return Address, they unavoidably overwrite the Canary, triggering an instant program termination.", "is_correct": true, "explanation": "This acts as a highly efficient tripwire against continuous buffer writes." },
+                { "id": "t2-q2-d", "text": "It moves all buffers to the Heap.", "is_correct": false, "explanation": "Buffers remain on the stack." }
+              ]
+            },
+            {
+              "question": "Why is an 'Information Leak' (e.g., printing a pointer to the terminal) catastrophic to a system protected by ASLR?",
+              "options": [
+                { "id": "t2-q3-a", "text": "ASLR relies on the absolute secrecy of the randomized Base Memory Address. If a hacker learns the exact RAM location of just one function, they can calculate the exact location of every other function in the library, completely defeating the randomization.", "is_correct": true, "explanation": "ASLR randomizes the starting point, not the internal distances." },
+                { "id": "t2-q3-b", "text": "It allows the attacker to steal passwords.", "is_correct": false, "explanation": "While possible, the specific threat to ASLR is topological awareness." },
+                { "id": "t2-q3-c", "text": "It causes the memory to defragment.", "is_correct": false, "explanation": "Memory topology remains identical." },
+                { "id": "t2-q3-d", "text": "It disables the NX bit.", "is_correct": false, "explanation": "NX relies on memory page flags, unaffected by leaks." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

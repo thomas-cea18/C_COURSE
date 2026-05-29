@@ -1,0 +1,266 @@
+{
+  "day": 35,
+  "module": "9: Network Sockets & Protocols",
+  "topics": [
+    {
+      "header_hub": {
+        "title": "The CPU Stall of Blocking recv() and accept() Calls",
+        "category": "Architecture",
+        "complexity": "Intermediate",
+        "standard": "POSIX",
+        "read_time": 20,
+        "prerequisites": ["day-33-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day35-t1-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day35-t1-txt-strategic-problem",
+          "content": "<p>By default, every POSIX socket is created in a <strong>Blocking</strong> state. This is a legacy design from the 1980s when programs only handled one task at a time. If a modern server calls <code>accept()</code> and no client is waiting, the OS Kernel violently removes your thread from the CPU and puts it to sleep in a Wait Queue. If you call <code>recv()</code> and the client is on a slow mobile connection, your thread sleeps until the data arrives. In a standard multi-threaded architecture, this CPU stall is devastating. A single malicious or slow client can permanently paralyze a server thread. If you have 10,000 clients, you need 10,000 threads, which crashes the server under massive context-switching overhead.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day35-t1-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day35-t1-txt-mechanics",
+          "content": "<p>When a thread executes a blocking system call, it transitions from the <em>Running</em> state to the <em>Interruptible Sleep</em> state. The CPU Scheduler saves its registers to RAM and physically stops allocating clock cycles to it. The thread only wakes up when the Network Interface Card (NIC) fires a hardware interrupt signaling that a packet has arrived. While sleeping saves CPU cycles, the memory overhead of the sleeping thread's 8MB stack remains permanently locked in RAM. To build scalable servers, we must architect around this by preventing the thread from ever going to sleep in the first place.</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day35-t1-svg-mechanics",
+          "caption": "A timeline contrasting a blocked thread waiting for network data vs a non-blocking thread checking the socket and moving on instantly.",
+          "alt_text": "Visual showing a Blocking socket suspending the thread indefinitely, while a Non-Blocking socket ricochets instantly, allowing the thread to do other work.",
+          "svg_code": "<svg viewBox='0 0 600 250' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='250' fill='var(--bg-card)'/><g transform='translate(20, 20)'><rect x='0' y='0' width='260' height='200' fill='none' stroke='var(--border-light)' stroke-width='2' rx='4'/><text x='130' y='25' fill='var(--text-primary)' font-family='monospace' font-weight='bold' text-anchor='middle'>Blocking Socket</text><rect x='60' y='40' width='140' height='30' fill='var(--bg-hover)'/><text x='130' y='60' fill='var(--text-secondary)' font-family='monospace' font-size='12' text-anchor='middle'>Application Thread</text><rect x='60' y='140' width='140' height='40' fill='rgba(239, 68, 68, 0.2)' stroke='var(--danger-border)'/><text x='130' y='160' fill='var(--danger-border)' font-family='monospace' font-size='12' text-anchor='middle'>OS Wait Queue</text><text x='130' y='175' fill='var(--danger-border)' font-family='sans-serif' font-size='10' text-anchor='middle'>(Thread Suspended)</text></g><path d='M130 70 L130 135' stroke='var(--danger-border)' stroke-width='3' marker-end='url(#arrow-danger)' stroke-dasharray='4,4'/><text x='175' y='110' fill='var(--danger-border)' font-size='10'>No Data</text><g transform='translate(310, 20)'><rect x='0' y='0' width='260' height='200' fill='none' stroke='var(--border-light)' stroke-width='2' rx='4'/><text x='130' y='25' fill='var(--text-primary)' font-family='monospace' font-weight='bold' text-anchor='middle'>Non-Blocking Socket</text><rect x='60' y='40' width='140' height='30' fill='var(--bg-hover)'/><text x='130' y='60' fill='var(--text-secondary)' font-family='monospace' font-size='12' text-anchor='middle'>Application Thread</text><rect x='60' y='140' width='140' height='40' fill='rgba(16, 185, 129, 0.2)' stroke='var(--success-border)'/><text x='130' y='160' fill='var(--success-border)' font-family='monospace' font-size='12' text-anchor='middle'>Process Client 2</text><text x='130' y='175' fill='var(--success-border)' font-family='sans-serif' font-size='10' text-anchor='middle'>(CPU Keeps Running)</text></g><path d='M110 70 L110 100 Q 110 120 130 120 Q 150 120 150 100 L150 70' stroke='var(--warning-border)' stroke-width='2' fill='none' marker-end='url(#arrow-warn)'/><text x='185' y='115' fill='var(--warning-border)' font-size='10'>Ricochet</text><path d='M130 120 L130 140' stroke='var(--success-border)' stroke-width='2' marker-end='url(#arrow-succ)'/><defs><marker id='arrow-danger' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--danger-border)'/></marker><marker id='arrow-succ' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--success-border)'/></marker><marker id='arrow-warn' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--warning-border)'/></marker></defs></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day35-t1-sec-trench-story",
+          "title": "Production Trench Story"
+        },
+        {
+          "type": "callout",
+          "block_id": "day35-t1-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage: The Slowloris Attack",
+          "content": "<p>A legacy forum running on a strictly Blocking, Thread-Per-Client architecture suffered a total outage. Network traffic was incredibly low (only 1 MB/s), yet the server reported 100% thread exhaustion. A hacker was executing a 'Slowloris' attack. The attacker established 2,000 valid TCP connections. However, instead of sending the full HTTP request, the attacker sent exactly 1 byte every 10 seconds. Because the sockets were blocking, all 2,000 server threads were physically suspended by the OS, helplessly waiting for the HTTP headers to finish arriving. The server hit its maximum thread limit and rejected all real users. Because Non-Blocking architectures operate on a single thread and only allocate CPU time when a full line of data is actively ready to be read, they are fundamentally immune to Slowloris attacks.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day35-t1-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day35-t1-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "What happens to the CPU state of a thread when it calls a blocking `accept()` on a socket with no pending connections?",
+              "options": [
+                { "id": "t1-q1-a", "text": "The thread spins in an infinite while loop, consuming 100% CPU.", "is_correct": false, "explanation": "That describes a Spinlock, not a blocking system call." },
+                { "id": "t1-q1-b", "text": "The OS Kernel physically removes the thread from the CPU Run Queue and places it in an Interruptible Sleep state, consuming 0% CPU but locking its RAM footprint until a hardware interrupt wakes it up.", "is_correct": true, "explanation": "This suspension is why Thread-per-Client scaling collapses under heavy load." },
+                { "id": "t1-q1-c", "text": "The call returns `-1` immediately.", "is_correct": false, "explanation": "This only happens if the socket is non-blocking." },
+                { "id": "t1-q1-d", "text": "The OS automatically forks a new process to wait for the connection.", "is_correct": false, "explanation": "The OS never forks processes automatically for socket operations." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Using fcntl to Switch Sockets to O_NONBLOCK Mode",
+        "category": "API Mechanics",
+        "complexity": "Advanced",
+        "standard": "POSIX",
+        "read_time": 20,
+        "prerequisites": ["day-35-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day35-t2-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day35-t2-txt-strategic-problem",
+          "content": "<p>To prevent the OS from suspending our threads, we must alter the fundamental properties of the File Descriptor within the Kernel's VFS (Virtual File System) table. We must instruct the OS that any read, write, or accept operation on this specific socket should return control to the User Space application instantaneously, regardless of whether network data is actually present. We achieve this state mutation using the <code>fcntl</code> (File Control) system call.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day35-t2-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day35-t2-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;fcntl.h&gt;</span>\n\n<span class=\"syntax-kw\">int</span> flags = fcntl(sockfd, F_GETFL, 0);\nfcntl(sockfd, F_SETFL, flags | O_NONBLOCK);",
+          "description": "The POSIX file control system call used to safely inject the O_NONBLOCK flag into a socket's bitmask.",
+          "parameters": [
+            { "name": "F_GETFL", "type": "Command", "description": "Fetches the current bitmask of file status flags from the Kernel." },
+            { "name": "F_SETFL", "type": "Command", "description": "Overwrites the status flags with a new bitmask." },
+            { "name": "O_NONBLOCK", "type": "Flag", "description": "Instructs the Kernel that operations on this FD must never suspend the thread." }
+          ],
+          "returns": { "type": "int", "description": "0 on success, -1 on failure." },
+          "complexity": "O(1) execution time. Instantly updates the Kernel-side File Descriptor metadata.",
+          "exceptions": "Blindly calling F_SETFL without retrieving the original flags via F_GETFL destroys all preexisting socket configurations."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day35-t2-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day35-t2-cb-fcntl",
+          "language": "c",
+          "header": "Safely Modifying Socket Attributes",
+          "code": "#include &lt;fcntl.h&gt;\n#include &lt;stdio.h&gt;\n#include &lt;unistd.h&gt;\n\n// Elite standard: Never blindly overwrite flags. Always GET, then OR, then SET.\nint make_socket_non_blocking(int fd) {\n    // 1. Retrieve the existing flags from the OS\n    int flags = fcntl(fd, F_GETFL, 0);\n    if (flags == -1) {\n        perror(\"fcntl F_GETFL failed\");\n        return -1;\n    }\n\n    // 2. Inject the Non-Blocking bit using Bitwise OR\n    flags |= O_NONBLOCK; \n    \n    // 3. Push the combined bitmask back to the OS\n    if (fcntl(fd, F_SETFL, flags) == -1) {\n        perror(\"fcntl F_SETFL failed\");\n        return -1;\n    }\n    \n    return 0;\n}"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day35-t2-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day35-t2-txt-debug-intro",
+          "content": "<p>Analyze the following broken snippet. Find the vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day35-t2-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The Blind Overwrite",
+          "code": "#include &lt;fcntl.h&gt;\n#include &lt;stdio.h&gt;\n\nint configure_server_socket(int fd) {\n    // The engineer wants to ensure the socket is Non-Blocking\n    // DANGER: They assign O_NONBLOCK directly to the File Descriptor flags\n    if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1) {\n        perror(\"Failed to set non-blocking\");\n        return -1;\n    }\n    return 0;\n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day35-t2-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "The `fcntl` F_SETFL command strictly *replaces* the entire bitmask of the File Descriptor. If the socket had previously been configured with other critical flags by the Kernel (such as `O_ASYNC` or specific access modes), executing `fcntl(fd, F_SETFL, O_NONBLOCK)` violently wipes all of those preexisting flags out of existence, leaving only `O_NONBLOCK`. This silently corrupts the socket's internal OS state. Fix: You must rigorously read the existing state first using `F_GETFL`, apply a bitwise OR (`|`) to inject your new flag, and then push the combined state back using `F_SETFL`." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day35-t2-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day35-t2-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "Why is executing `fcntl(fd, F_SETFL, O_NONBLOCK)` directly, without calling `F_GETFL` first, considered a critical system vulnerability?",
+              "options": [
+                { "id": "t2-q1-a", "text": "It requires Root privileges to execute directly.", "is_correct": false, "explanation": "Modifying socket flags does not require Root." },
+                { "id": "t2-q1-b", "text": "`F_SETFL` strictly overwrites the entire bitmask of the File Descriptor. If you do not retrieve the existing flags first and perform a Bitwise OR, you will violently delete any hidden Kernel flags already attached to the socket.", "is_correct": true, "explanation": "Always Get, Bitwise OR, then Set to preserve preexisting metadata." },
+                { "id": "t2-q1-c", "text": "It causes the socket to instantly disconnect.", "is_correct": false, "explanation": "It corrupts state, but doesn't implicitly sever the TCP handshake." },
+                { "id": "t2-q1-d", "text": "The compiler will reject the syntax.", "is_correct": false, "explanation": "The C compiler accepts the syntax perfectly, failing silently at runtime." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Trapping EAGAIN / EWOULDBLOCK to Resume Processing",
+        "category": "Error Handling",
+        "complexity": "Advanced",
+        "standard": "POSIX",
+        "read_time": 25,
+        "prerequisites": ["day-35-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day35-t3-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day35-t3-txt-strategic-problem",
+          "content": "<p>We successfully applied <code>O_NONBLOCK</code>. The OS will no longer suspend our thread. However, this creates a new architectural dilemma: When we call <code>recv()</code>, and there is no data, the function cannot return a string, and it cannot sleep. What does it do? It returns <code>-1</code>. But <code>-1</code> is the universal POSIX indicator for a fatal crash! If the network cable is unplugged, it returns <code>-1</code>. If the client disconnects violently, it returns <code>-1</code>. If the socket is simply empty, it returns <code>-1</code>. If we treat every <code>-1</code> as a crash, we will disconnect perfectly healthy clients merely because they are typing slowly. We must learn to read the global <code>errno</code> variable to differentiate between fatal hardware failures and non-fatal \"try again later\" warnings.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day35-t3-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day35-t3-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;errno.h&gt;</span>\n\n<span class=\"syntax-ty\">ssize_t</span> bytes = recv(client_fd, buffer, <span class=\"syntax-kw\">sizeof</span>(buffer), 0);\n<span class=\"syntax-kw\">if</span> (bytes == -1) {\n    <span class=\"syntax-kw\">if</span> (errno == EAGAIN || errno == EWOULDBLOCK) {\n        // Handled gracefully\n    }\n}",
+          "description": "The mandatory error trapping paradigm for Non-Blocking I/O.",
+          "parameters": [
+            { "name": "EAGAIN", "type": "Macro", "description": "Error code meaning 'Resource temporarily unavailable. Try your call again later.'" },
+            { "name": "EWOULDBLOCK", "type": "Macro", "description": "Historically identical to EAGAIN on Berkeley Socket implementations." }
+          ],
+          "returns": { "type": "N/A", "description": "errno is a thread-local integer updated by the Kernel when a syscall fails." },
+          "complexity": "O(1) condition check.",
+          "exceptions": "If recv() returns 0, it is NOT an error. It explicitly means the client cleanly closed the connection (EOF)."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day35-t3-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day35-t3-cb-eagain",
+          "language": "c",
+          "header": "The Bulletproof Non-Blocking Recv Loop",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;errno.h&gt;\n#include &lt;unistd.h&gt;\n#include &lt;sys/socket.h&gt;\n\nvoid service_client(int client_fd) {\n    char buffer[1024];\n    \n    // Attempt to read. Because of O_NONBLOCK, this will NOT suspend the thread.\n    ssize_t bytes = recv(client_fd, buffer, sizeof(buffer), 0);\n    \n    if (bytes < 0) {\n        // The trap: We must distinguish between a 'try again' signal and a true crash.\n        if (errno == EAGAIN || errno == EWOULDBLOCK) {\n            // Expected behavior. No data is here yet.\n            // We must return and let the server check other clients.\n            // (In Day 44, we will learn how 'epoll' tells us exactly when to return here).\n            return; \n        } else {\n            // A real fatal network error occurred (e.g., ECONNRESET)\n            perror(\"Fatal read error\");\n            close(client_fd);\n        }\n    } else if (bytes == 0) {\n        // POSIX specification: 0 means the client disconnected gracefully.\n        printf(\"Client disconnected.\\n\");\n        close(client_fd);\n    } else {\n        // Data successfully processed!\n        printf(\"Read %zd bytes.\\n\", bytes);\n    }\n}"
+        },
+        {
+          "type": "callout",
+          "block_id": "day35-t3-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>EAGAIN vs EWOULDBLOCK:</strong> In modern POSIX architectures, these two error codes are functionally and mathematically identical. Historically, <code>EAGAIN</code> was used for non-blocking Pipes, and <code>EWOULDBLOCK</code> was used for Network Sockets. The C standard explicitly states they may share the same integer value, so robust systems code universally checks <code>if (errno == EAGAIN || errno == EWOULDBLOCK)</code> to guarantee cross-OS compilation safety.</li><li><strong>The accept() Loop:</strong> When a listening server socket is Non-Blocking, calling <code>accept()</code> might return <code>EAGAIN</code>. Furthermore, if 5 clients connect in the exact same millisecond, you must wrap your <code>accept()</code> call in a <code>while(1)</code> loop, continually accepting clients until it explicitly returns <code>EAGAIN</code>, ensuring no connections are left lingering in the backlog queue.</li></ul>"
+        },
+        {
+          "type": "callout",
+          "block_id": "day35-t3-callout-antipatterns",
+          "variant": "danger",
+          "color": "var(--danger-border)",
+          "title": "Fatal Anti-Patterns",
+          "content": "<ul><li><strong>Busy Waiting (The CPU Furnace):</strong> If you set a socket to Non-Blocking, and simply loop <code>while(recv(...) == -1 &amp;&amp; errno == EAGAIN) {}</code>, you have completely defeated the purpose. Your thread will violently query the Kernel millions of times a second, consuming 100% of the CPU core just to do absolutely nothing. Non-Blocking sockets MUST be paired with an Event Notification system (like <code>epoll</code> in Module 12) that puts the thread to sleep intelligently until the hardware interrupts.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day35-t3-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day35-t3-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "When a network socket is configured with `O_NONBLOCK`, how does the Kernel respond when the application calls `recv()` but the client hasn't sent any data yet?",
+              "options": [
+                { "id": "t3-q1-a", "text": "It returns `0`.", "is_correct": false, "explanation": "0 exclusively means EOF (The client disconnected gracefully)." },
+                { "id": "t3-q1-b", "text": "It instantly returns `-1` and sets the global `errno` to `EAGAIN` or `EWOULDBLOCK`, signaling to the application that it must retry the operation later.", "is_correct": true, "explanation": "This mechanism prevents the thread from being suspended by the OS, allowing it to immediately process other active sockets." },
+                { "id": "t3-q1-c", "text": "It puts the thread to sleep for exactly 1 millisecond.", "is_correct": false, "explanation": "It never puts the thread to sleep under any circumstance." },
+                { "id": "t3-q1-d", "text": "It triggers a hardware Segfault.", "is_correct": false, "explanation": "It handles the state gracefully via standard error codes." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

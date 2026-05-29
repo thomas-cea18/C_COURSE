@@ -1,0 +1,205 @@
+{
+  "day": 29,
+  "module": "8: Multithreading, Concurrency & IPC",
+  "topics": [
+    {
+      "header_hub": {
+        "title": "Processes vs Threads: Shared Heap/Data vs Private Stacks",
+        "category": "Architecture",
+        "complexity": "Intermediate",
+        "standard": "POSIX",
+        "read_time": 25,
+        "prerequisites": ["day-25-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day29-t1-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day29-t1-txt-strategic-problem",
+          "content": "<p>In Module 7, we achieved concurrency using <code>fork()</code>. However, <code>fork()</code> creates heavily isolated <strong>Processes</strong>. If Process A allocates memory on the Heap and modifies it, Process B physically cannot see that change due to Virtual Memory separation. Sharing data requires complex, slow Inter-Process Communication (IPC) pipelines like Pipes or mapped Shared Memory. Furthermore, cloning a process requires the OS to duplicate massive Page Tables and file descriptor lists. To achieve ultra-fast concurrency where workers can instantly read and write to the exact same variables without IPC overhead, we must abandon isolated processes and use <strong>Threads</strong>.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day29-t1-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day29-t1-txt-mechanics",
+          "content": "<p>A Thread is a \"lightweight process.\" When you spawn a thread, the OS Kernel does <em>not</em> create a new Virtual Memory space. The new thread lives inside the exact same memory map as the parent. It shares the <code>.text</code> (code), <code>.data</code> (globals), and the Heap. If Thread 1 executes <code>malloc()</code> and writes to the pointer, Thread 2 can instantly read that pointer. <strong>However, threads MUST have private Stacks.</strong> Because threads execute functions asynchronously, they need their own private stack frames to store local variables and function return addresses. If two threads shared a stack, Thread 1's local variables would physically overwrite Thread 2's return addresses, causing catastrophic corruption.</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day29-t1-svg-mechanics",
+          "caption": "A memory map contrasting two isolated Processes vs two Threads sharing the exact same Global memory and Heap.",
+          "alt_text": "Visual showing Process 1 and Process 2 with completely separate memory blocks. Beside it, a single Process contains two distinct Stacks, but a unified shared Heap, Data, and Text segment.",
+          "svg_code": "<svg viewBox='0 0 600 250' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='250' fill='var(--bg-card)'/><g transform='translate(20, 20)'><text x='100' y='15' fill='var(--text-primary)' font-family='monospace' font-weight='bold' text-anchor='middle'>Multiprocessing (fork)</text><rect x='0' y='30' width='90' height='180' fill='none' stroke='var(--danger-border)' stroke-width='2' rx='4'/><text x='45' y='50' fill='var(--danger-border)' font-family='monospace' font-size='10' text-anchor='middle'>Process 1</text><rect x='10' y='60' width='70' height='30' fill='var(--bg-hover)'/><text x='45' y='80' fill='var(--text-primary)' font-family='monospace' font-size='10' text-anchor='middle'>Stack</text><rect x='10' y='100' width='70' height='30' fill='var(--bg-hover)'/><text x='45' y='120' fill='var(--text-primary)' font-family='monospace' font-size='10' text-anchor='middle'>Heap</text><rect x='10' y='140' width='70' height='20' fill='var(--bg-hover)'/><text x='45' y='155' fill='var(--text-secondary)' font-family='monospace' font-size='10' text-anchor='middle'>.data</text><rect x='10' y='170' width='70' height='30' fill='rgba(14, 165, 233, 0.2)' stroke='var(--accent)'/><text x='45' y='190' fill='var(--accent)' font-family='monospace' font-size='10' text-anchor='middle'>.text</text><rect x='110' y='30' width='90' height='180' fill='none' stroke='var(--warning-border)' stroke-width='2' rx='4'/><text x='155' y='50' fill='var(--warning-border)' font-family='monospace' font-size='10' text-anchor='middle'>Process 2</text><rect x='120' y='60' width='70' height='30' fill='var(--bg-hover)'/><text x='155' y='80' fill='var(--text-primary)' font-family='monospace' font-size='10' text-anchor='middle'>Stack</text><rect x='120' y='100' width='70' height='30' fill='var(--bg-hover)'/><text x='155' y='120' fill='var(--text-primary)' font-family='monospace' font-size='10' text-anchor='middle'>Heap</text><rect x='120' y='140' width='70' height='20' fill='var(--bg-hover)'/><text x='155' y='155' fill='var(--text-secondary)' font-family='monospace' font-size='10' text-anchor='middle'>.data</text><rect x='120' y='170' width='70' height='30' fill='rgba(14, 165, 233, 0.2)' stroke='var(--accent)'/><text x='155' y='190' fill='var(--accent)' font-family='monospace' font-size='10' text-anchor='middle'>.text</text></g><line x1='280' y1='20' x2='280' y2='230' stroke='var(--border-light)' stroke-width='2' stroke-dasharray='4,4'/><g transform='translate(330, 20)'><text x='125' y='15' fill='var(--success-border)' font-family='monospace' font-weight='bold' text-anchor='middle'>Multithreading (pthreads)</text><rect x='0' y='30' width='250' height='180' fill='none' stroke='var(--success-border)' stroke-width='2' rx='4'/><text x='125' y='50' fill='var(--success-border)' font-family='monospace' font-size='10' text-anchor='middle'>Single Process</text><rect x='20' y='60' width='90' height='30' fill='rgba(239, 68, 68, 0.2)' stroke='var(--danger-border)'/><text x='65' y='80' fill='var(--text-primary)' font-family='monospace' font-size='10' text-anchor='middle'>Thread 1 Stack</text><rect x='140' y='60' width='90' height='30' fill='rgba(245, 158, 11, 0.2)' stroke='var(--warning-border)'/><text x='185' y='80' fill='var(--text-primary)' font-family='monospace' font-size='10' text-anchor='middle'>Thread 2 Stack</text><rect x='20' y='100' width='210' height='30' fill='rgba(16, 185, 129, 0.1)' stroke='var(--success-border)'/><text x='125' y='120' fill='var(--success-border)' font-family='monospace' font-size='10' font-weight='bold' text-anchor='middle'>SHARED HEAP</text><rect x='20' y='140' width='210' height='20' fill='rgba(16, 185, 129, 0.1)' stroke='var(--success-border)'/><text x='125' y='155' fill='var(--success-border)' font-family='monospace' font-size='10' font-weight='bold' text-anchor='middle'>SHARED .data (Globals)</text><rect x='20' y='170' width='210' height='30' fill='rgba(14, 165, 233, 0.2)' stroke='var(--accent)'/><text x='125' y='190' fill='var(--accent)' font-family='monospace' font-size='10' text-anchor='middle'>SHARED .text (Code)</text></g></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day29-t1-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day29-t1-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "Which specific segment of memory MUST be physically duplicated and kept strictly private for every new thread spawned within a process?",
+              "options": [
+                { "id": "t1-q1-a", "text": "The Heap.", "is_correct": false, "explanation": "The Heap is shared, allowing threads to exchange dynamic data instantly." },
+                { "id": "t1-q1-b", "text": "The Stack. Because threads execute functions independently, they require private stacks to hold local variables, function arguments, and Return Instruction Pointers without overwriting each other.", "is_correct": true, "explanation": "A shared stack would result in immediate catastrophic corruption of the execution flow." },
+                { "id": "t1-q1-c", "text": "The `.data` segment.", "is_correct": false, "explanation": "Global variables (.data) are shared across all threads." },
+                { "id": "t1-q1-d", "text": "The File Descriptor Table.", "is_correct": false, "explanation": "If one thread opens a file, all threads in the process can access that File Descriptor." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Spawning and Joining Threads using pthread_create",
+        "category": "API Mechanics",
+        "complexity": "Intermediate",
+        "standard": "POSIX",
+        "read_time": 30,
+        "prerequisites": ["day-29-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day29-t2-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day29-t2-txt-strategic-problem",
+          "content": "<p>In Linux, the Kernel technically spawns threads via the <code>clone()</code> system call. However, <code>clone()</code> is incredibly complex and requires manual allocation of the child's stack memory. To abstract this complexity, POSIX defines the <strong>pthreads (POSIX Threads)</strong> standard. The <code>pthread</code> library intercepts your request, manages the stack allocation, configures the hardware registers, and safely interfaces with the CPU Scheduler. To build a multithreaded architecture, we must explicitly define entry-point functions, pass arguments securely, and <strong>join</strong> the threads back to the main thread to synchronize the results.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day29-t2-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day29-t2-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;pthread.h&gt;</span>\n\n<span class=\"syntax-ty\">pthread_t</span> thread_id;\n<span class=\"syntax-kw\">int</span> status = pthread_create(&amp;thread_id, NULL, worker_function, (<span class=\"syntax-kw\">void</span>*)arg);\npthread_join(thread_id, (<span class=\"syntax-kw\">void</span>**)&amp;return_value);",
+          "description": "The POSIX interface for lifecycle management of application threads.",
+          "parameters": [
+            { "name": "thread_id", "type": "pthread_t*", "description": "Pointer to a handle that will store the unique ID of the newly spawned thread." },
+            { "name": "start_routine", "type": "void* (*)(void*)", "description": "The function the thread will execute. It MUST take exactly one void* argument and return a void*." },
+            { "name": "arg", "type": "void*", "description": "The payload passed into the start_routine. Usually a pointer to a struct containing multiple parameters." },
+            { "name": "pthread_join", "type": "Function", "description": "Physically blocks the calling thread until the target thread finishes execution, preventing premature process exits." }
+          ],
+          "returns": { "type": "int", "description": "Returns 0 on success, or a positive error number on failure (does NOT set errno)." },
+          "complexity": "Thread creation is fast (microsecond latency), but slower than standard function calls.",
+          "exceptions": "You must link the binary using the `-lpthread` or `-pthread` compiler flag."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day29-t2-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day29-t2-cb-pthreads",
+          "language": "c",
+          "header": "Processing an Array in Quadrants (Assessment Check)",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;stdlib.h&gt;\n#include &lt;pthread.h&gt;\n\n#define ARRAY_SIZE 1000000\n#define NUM_THREADS 4\n\nint data_array[ARRAY_SIZE];\n\n// The payload struct to pass multiple arguments into the thread\ntypedef struct {\n    int thread_id;\n    int start_index;\n    int end_index;\n    long long partial_sum;\n} TaskData;\n\n// The Thread Entry Point MUST match this exact signature\nvoid* compute_quadrant(void* arg) {\n    // Cast the opaque void pointer back to our structural type\n    TaskData* task = (TaskData*)arg;\n    task->partial_sum = 0;\n    \n    // Process strictly the specific quadrant assigned to this thread\n    for (int i = task->start_index; i < task->end_index; i++) {\n        task->partial_sum += data_array[i];\n    }\n    \n    printf(\"Thread %d finished. Sum: %lld\\n\", task->thread_id, task->partial_sum);\n    \n    // Returning NULL. We could return a dynamically allocated pointer here.\n    return NULL;\n}\n\nint main() {\n    // Initialize dummy data\n    for (int i = 0; i < ARRAY_SIZE; i++) data_array[i] = 1;\n    \n    pthread_t threads[NUM_THREADS];\n    TaskData tasks[NUM_THREADS];\n    int chunk_size = ARRAY_SIZE / NUM_THREADS;\n    \n    // 1. Spawning Phase\n    for (int i = 0; i < NUM_THREADS; i++) {\n        tasks[i].thread_id = i;\n        tasks[i].start_index = i * chunk_size;\n        tasks[i].end_index = (i + 1) * chunk_size;\n        \n        // Spawn the thread and hand it the memory address of its specific task struct\n        if (pthread_create(&threads[i], NULL, compute_quadrant, &tasks[i]) != 0) {\n            perror(\"Failed to spawn thread\");\n            return 1;\n        }\n    }\n    \n    // 2. Joining Phase\n    // The main thread must halt and wait for all 4 workers to finish.\n    // If main() exits, the OS instantly massacres all running threads.\n    long long grand_total = 0;\n    for (int i = 0; i < NUM_THREADS; i++) {\n        pthread_join(threads[i], NULL);\n        grand_total += tasks[i].partial_sum;\n    }\n    \n    printf(\"Grand Total: %lld\\n\", grand_total);\n    return 0;\n}"
+        },
+        {
+          "type": "callout",
+          "block_id": "day29-t2-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>The Main Exit Trap:</strong> If the <code>main()</code> function reaches <code>return 0;</code> or calls <code>exit()</code>, the Operating System violently terminates the entire process map. Every single background thread is instantly murdered mid-instruction, regardless of whether they were writing to a database or allocating memory. You MUST execute <code>pthread_join()</code> on all critical threads to block the <code>main()</code> function from terminating prematurely.</li></ul>"
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Context Switching Overhead and Shared Memory Constraints",
+        "category": "Performance",
+        "complexity": "Expert",
+        "standard": "POSIX",
+        "read_time": 30,
+        "prerequisites": ["day-29-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day29-t3-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day29-t3-txt-strategic-problem",
+          "content": "<p>A junior engineer builds a web server. To handle 10,000 simultaneous clients, they spawn 10,000 threads. The server instantly crashes. Why? <strong>Memory Constraints.</strong> By default on Linux, <code>pthread_create</code> allocates exactly 8 Megabytes of physical RAM for the new thread's private Stack. 10,000 threads * 8MB = 80 Gigabytes of RAM consumed purely by empty stack space. Furthermore, the CPU only has 8 physical cores. To run 10,000 threads on 8 cores, the OS CPU Scheduler must aggressively swap threads in and out of the CPU thousands of times a second. This is called <strong>Context Switching</strong>. The OS saves the CPU registers, clears the L1 Cache, and loads the next thread. If you spawn too many threads, the CPU spends 90% of its time switching contexts and only 10% actually executing your C code. This is known as <strong>Thrashing</strong>.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day29-t3-sec-mechanics",
+          "title": "Internal Mechanics: Thread Pools"
+        },
+        {
+          "type": "text",
+          "block_id": "day29-t3-txt-mechanics",
+          "content": "<p>Elite systems never spawn a thread per task. They use a <strong>Thread Pool</strong>. When the application boots, it queries the hardware to determine the physical core count (e.g., 8 cores). The application spawns exactly 8 threads. These threads never die; they sit in an infinite <code>while</code> loop. When a new client connects, the main thread pushes a \"Job\" into a shared queue in RAM. The 8 threads consume jobs from the queue. This completely eliminates the microsecond latency of calling <code>pthread_create</code>, mathematically bounds the Stack memory usage to 64MB (8 * 8MB), and prevents CPU Thrashing because the OS Scheduler rarely has to preempt the worker threads.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day29-t3-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day29-t3-txt-debug-intro",
+          "content": "<p>When spawning threads in a loop, memory sharing introduces a fatal, universally encountered bug. Analyze the following snippet. Find the race condition before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day29-t3-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The Loop Counter Reference",
+          "code": "#include &lt;pthread.h&gt;\n#include &lt;stdio.h&gt;\n\nvoid* worker(void* arg) {\n    // DANGER: We dereference the pointer to get the ID\n    int thread_id = *(int*)arg;\n    printf(\"I am thread %d\\n\", thread_id);\n    return NULL;\n}\n\nint main() {\n    pthread_t threads[4];\n    \n    for (int i = 0; i < 4; i++) {\n        // DANGER: We pass the memory address of the loop counter 'i'\n        pthread_create(&threads[i], NULL, worker, &i);\n    }\n    \n    for (int i = 0; i < 4; i++) pthread_join(threads[i], NULL);\n    return 0;\n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day29-t3-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "The main thread executes the `for` loop blisteringly fast. It passes the memory address of the local variable `i` to the threads. By the time the OS Scheduler actually boots up Thread 0 and it executes `int thread_id = *(int*)arg;`, the main thread has already looped, incrementing `i` to 2, 3, or even 4! All 4 threads will dereference the pointer simultaneously and print \"I am thread 4\". They share the memory address, so they see the mutated state. Fix: You must either pass the value by casting it directly into the void pointer (`(void*)(intptr_t)i`), or dynamically allocate a unique struct for every single thread on the Heap/Array (as demonstrated in the Evolutionary Code section)." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day29-t3-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day29-t3-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "What is the primary architectural danger of the 'One Thread per Client' model (e.g., spawning 10,000 threads for 10,000 clients)?",
+              "options": [
+                { "id": "t3-q1-a", "text": "Threads cannot share global data, so data synchronization becomes impossible.", "is_correct": false, "explanation": "Threads perfectly share global data; that is their defining feature." },
+                { "id": "t3-q1-b", "text": "It exhausts the OS File Descriptor table.", "is_correct": false, "explanation": "Threads share the parent's FD table; spawning a thread does not consume a new FD." },
+                { "id": "t3-q1-c", "text": "Massive RAM exhaustion due to fixed-size Stack allocations (e.g., 8MB per thread) and catastrophic CPU 'Thrashing' as the OS Scheduler wastes clock cycles violently swapping 10,000 contexts on a limited number of physical cores.", "is_correct": true, "explanation": "This bottleneck is known as the C10K problem, which is why Thread Pools and Async I/O (epoll) were invented." },
+                { "id": "t3-q1-d", "text": "It triggers a hardware segmentation fault.", "is_correct": false, "explanation": "It doesn't segfault inherently; it just grinds the system to a halt or hits an OOM kill." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

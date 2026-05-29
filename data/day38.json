@@ -1,0 +1,316 @@
+{
+  "day": 38,
+  "module": "10: Security, Fuzzing, & Tooling",
+  "topics": [
+    {
+      "header_hub": {
+        "title": "Core Principles of MISRA C:2012",
+        "category": "Standards & Compliance",
+        "complexity": "Intermediate",
+        "standard": "MISRA C:2012",
+        "read_time": 25,
+        "prerequisites": ["day-3-topic-1", "day-6-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day38-t1-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day38-t1-txt-strategic-problem",
+          "content": "<p>The C programming language was designed for speed and hardware manipulation, not safety. The ISO C Standard is riddled with hundreds of instances of <strong>Undefined Behavior (UB)</strong>, Unspecified Behavior, and Implementation-Defined Behavior. In a web server, a segmentation fault causes a dropped HTTP request. In a Boeing 737 flight controller, an ABS braking system, or a medical pacemaker, a crash is fatal. To write C code for safety-critical hardware, we must mathematically eliminate all ambiguity. We achieve this by artificially restricting the C language to a heavily guarded, deterministic subset known as the <strong>MISRA C Standard</strong> (Motor Industry Software Reliability Association).</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day38-t1-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day38-t1-api-main",
+          "signature": "// MISRA Rule 10.4: Essential types must match\n<span class=\"syntax-ty\">uint32_t</span> speed = 100U; // Compliant (Explicitly Unsigned)\n<span class=\"syntax-ty\">uint32_t</span> speed = 100;  // NON-Compliant (Implicit cast from signed 'int')\n\n// MISRA Rule 15.6: Iteration statements must be enclosed in braces\n<span class=\"syntax-kw\">if</span> (sensor_active) { enable_motor(); } // Compliant\n<span class=\"syntax-kw\">if</span> (sensor_active) enable_motor();   // NON-Compliant",
+          "description": "MISRA C is not an API; it is a rigid set of 143 Rules and 16 Directives that govern syntax, types, and control flow.",
+          "parameters": [
+            { "name": "Mandatory Rules", "type": "Classification", "description": "Rules that must never be broken under any circumstances (e.g., Do not use freed memory)." },
+            { "name": "Required Rules", "type": "Classification", "description": "Rules that must be followed unless a formal, documented 'Deviation' is authorized by engineering leadership." },
+            { "name": "Advisory Rules", "type": "Classification", "description": "Highly recommended practices that can be ignored without formal paperwork if justified." }
+          ],
+          "returns": { "type": "N/A", "description": "N/A" },
+          "complexity": "Writing compliant code requires significant upfront verbosity to eliminate implicit compiler behaviors.",
+          "exceptions": "MISRA Compliance requires 100% adherence to Mandatory rules and documented deviations for Required rules."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day38-t1-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day38-t1-txt-mechanics",
+          "content": "<p>Why does MISRA force you to write <code>100U</code> instead of <code>100</code>? The C compiler defines <code>100</code> as a signed <code>int</code>. If you assign it to a <code>uint32_t</code>, the compiler performs an <em>Implicit Type Conversion</em>. While assigning a positive integer is harmless, assigning negative numbers or mixing signed/unsigned variables in mathematical operations causes catastrophic bit-level promotion bugs (Day 3). MISRA demands that the developer's intent is physically encoded into the text. If you want an unsigned 32-bit integer, you must explicitly declare the literal as unsigned. There is no assuming; there is only explicit instruction.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day38-t1-sec-trench-story",
+          "title": "Production Trench Story"
+        },
+        {
+          "type": "callout",
+          "block_id": "day38-t1-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage: The Toyota Unintended Acceleration",
+          "content": "<p>In the late 2000s, investigators analyzed the firmware of vehicles involved in sudden unintended acceleration incidents. The code was a nightmare of non-compliance. The firmware utilized over 10,000 global variables, making data state impossible to track chronologically. It contained massive cyclomatic complexity (spaghetti code with deeply nested <code>if/goto</code> branches) that defeated Static Analysis tools. Stack memory limits were routinely violated due to unbounded recursion, causing the stack to physically overwrite OS RTOS (Real-Time OS) task boundaries. If the code had been developed under strict MISRA C standards, the compilation pipeline would have forcefully rejected the recursive functions, the global variable abuse, and the unbounded loops before the firmware ever reached a physical car.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day38-t1-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day38-t1-txt-debug-intro",
+          "content": "<p>Analyze the following broken snippet. Find the MISRA vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day38-t1-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The Assignment Trap",
+          "code": "#include &lt;stdbool.h&gt;\n#include &lt;stdint.h&gt;\n\nvoid verify_system_state(uint8_t system_voltage) {\n    bool is_critical = false;\n    \n    // Engineer wants to check if voltage equals 5V\n    // DANGER: Typo results in assignment instead of comparison\n    if (system_voltage = 5U) {\n        is_critical = true;\n    }\n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day38-t1-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "The engineer accidentally used `=` instead of `==`. In C, an assignment statement returns the assigned value. `system_voltage = 5U` returns `5`. In C's boolean logic, any non-zero value is `true`. The `if` branch executes unconditionally, and the underlying `system_voltage` variable is permanently corrupted. This is one of the most common catastrophic bugs in C. MISRA Rule 14.3 explicitly forbids assignments occurring within a boolean context. Furthermore, MISRA Rule 14.4 dictates that the controlling expression of an `if` statement MUST have a boolean type. Since `5` is an integer, it violently violates MISRA." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day38-t1-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day38-t1-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "What is the primary architectural goal of adhering to the MISRA C Standard?",
+              "options": [
+                { "id": "t1-q1-a", "text": "To increase the execution speed of the compiled binary.", "is_correct": false, "explanation": "MISRA does not optimize for speed; it optimizes for safety." },
+                { "id": "t1-q1-b", "text": "To artificially restrict the C language to a deterministic subset, mathematically eliminating Undefined Behavior, implicit type conversions, and ambiguous control flows that cause fatal bugs in hardware systems.", "is_correct": true, "explanation": "Safety-critical systems demand code that behaves exactly the same across every compiler and every architecture." },
+                { "id": "t1-q1-c", "text": "To implement Object-Oriented paradigms in C.", "is_correct": false, "explanation": "MISRA regulates syntax, it does not add OOP features." },
+                { "id": "t1-q1-d", "text": "To prevent memory leaks by enforcing Garbage Collection.", "is_correct": false, "explanation": "MISRA prevents leaks by banning dynamic memory entirely, not by using a GC." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Banning Dynamic Memory (malloc) and Variable Length Arrays",
+        "category": "Memory Management",
+        "complexity": "Advanced",
+        "standard": "MISRA C Directive 4.12",
+        "read_time": 25,
+        "prerequisites": ["day-16-topic-1", "day-7-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day38-t2-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day38-t2-txt-strategic-problem",
+          "content": "<p>In standard software development, <code>malloc()</code> is the cornerstone of dynamic architectures. In safety-critical embedded systems, <code>malloc()</code> is a ticking time bomb. Dynamic memory allocation introduces three fatal non-deterministic threats. First, <strong>Fragmentation</strong>: over months of continuous uptime, allocating and freeing memory shreds the Heap into tiny, unusable chunks. Second, <strong>Execution Latency</strong>: searching the Heap for a free chunk takes a variable amount of CPU cycles, destroying Hard Real-Time guarantees. Third, <strong>Out of Memory (OOM)</strong>: if <code>malloc</code> fails, the system crashes. A satellite millions of miles away cannot reboot its physical RAM mid-flight. To guarantee 100% determinism, MISRA completely eradicates the concept of dynamic memory.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day38-t2-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day38-t2-api-main",
+          "signature": "// MISRA Directive 4.12: Dynamic memory allocation shall not be used.\n<span class=\"syntax-kw\">void</span>* ptr = malloc(1024); // FATAL MISRA VIOLATION\n\n// MISRA Rule 18.8: Variable-length array types shall not be used.\n<span class=\"syntax-kw\">void</span> process_data(<span class=\"syntax-ty\">uint16_t</span> size) {\n    <span class=\"syntax-ty\">uint8_t</span> buffer[size]; // FATAL MISRA VIOLATION\n}",
+          "description": "The strict banning of runtime-sized memory allocations on both the Heap and the Stack.",
+          "parameters": [
+            { "name": "malloc/free", "type": "Heap Ban", "description": "Banned to eliminate fragmentation, memory leaks, dangling pointers, and latency variance." },
+            { "name": "VLAs", "type": "Stack Ban", "description": "Banned because a large runtime integer can instantly overflow the bounded Stack memory, crashing the RTOS." }
+          ],
+          "returns": { "type": "N/A", "description": "N/A" },
+          "complexity": "Forces engineers to calculate the absolute maximum mathematical memory limit of the system at Compile Time.",
+          "exceptions": "None. This is the cornerstone of embedded safety."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day38-t2-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day38-t2-txt-mechanics",
+          "content": "<p>If you cannot use <code>malloc</code>, how do you handle data? <strong>Static Allocation and Object Pools.</strong> Every single byte of memory the program will ever need must be allocated globally in the <code>.bss</code> or <code>.data</code> segments at compile time. If your firmware manages network packets, you determine the maximum possible network throughput. If the max is 100 packets, you declare <code>static Packet packet_pool[100];</code>. If a 101st packet arrives, your software gracefully rejects it, rather than attempting to dynamically allocate a 101st slot and risking a Heap collapse. The system operates within a known, mathematically proven bounded state.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day38-t2-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day38-t2-cb-pool",
+          "language": "c",
+          "header": "Refactoring Malloc into a Static Object Pool",
+          "code": "#include &lt;stdint.h&gt;\n#include &lt;stdbool.h&gt;\n\n#define MAX_SENSORS 16U\n\ntypedef struct {\n    uint32_t sensor_id;\n    bool is_active;\n} SensorNode;\n\n// 1. Static Memory Pool allocated entirely at compile time.\n// Sits safely in the .bss segment. Zero runtime allocation cost.\nstatic SensorNode sensor_pool[MAX_SENSORS];\n\n// 2. We maintain a static index or a bitmap to track used slots.\nstatic uint8_t active_sensors = 0U;\n\n// 3. The deterministic \"allocation\" function\nSensorNode* allocate_sensor(void) {\n    if (active_sensors >= MAX_SENSORS) {\n        // Deterministic failure: We hit the hard mathematical limit.\n        // The system gracefully refuses, rather than triggering a Heap OOM.\n        return NULL;\n    }\n    \n    SensorNode *new_sensor = &sensor_pool[active_sensors];\n    active_sensors++;\n    \n    new_sensor->is_active = true;\n    return new_sensor;\n}"
+        },
+        {
+          "type": "callout",
+          "block_id": "day38-t2-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Recursion is Banned:</strong> MISRA Rule 17.2 states \"Functions shall not call themselves, either directly or indirectly.\" Recursion consumes a variable amount of Stack Memory. If a recursive depth condition fails, it smashes the stack. All iterative logic must be performed using bounded <code>for</code> or <code>while</code> loops.</li><li><strong>No Hidden Goto's:</strong> MISRA heavily regulates the <code>goto</code> statement. While not outright banned in older standards, modern safety-critical architectures forbid jumping upwards in code, as it creates infinite loop vulnerabilities. Forward jumps are heavily restricted to emergency error-handling bailouts.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day38-t2-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day38-t2-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "Why is the use of `malloc()` strictly banned in MISRA C and aerospace software development?",
+              "options": [
+                { "id": "t2-q1-a", "text": "It requires an active internet connection to allocate memory.", "is_correct": false, "explanation": "Malloc does not use networking." },
+                { "id": "t2-q1-b", "text": "Dynamic memory allocation introduces non-deterministic latency when searching for free blocks, causes Heap Fragmentation over long uptimes, and risks fatal Out-Of-Memory (OOM) crashes in environments where rebooting is physically impossible.", "is_correct": true, "explanation": "Safety-critical memory must be 100% mathematically bounded at compile time via static allocation." },
+                { "id": "t2-q1-c", "text": "It triggers Strict Aliasing violations.", "is_correct": false, "explanation": "Aliasing is a pointer casting issue, independent of how the memory was allocated." },
+                { "id": "t2-q1-d", "text": "Malloc cannot return 64-bit pointers.", "is_correct": false, "explanation": "Malloc perfectly handles 64-bit architecture." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Automating Compliance: Static Analysis via cppcheck and clang-tidy",
+        "category": "Tooling",
+        "complexity": "Intermediate",
+        "standard": "LLVM/Clang",
+        "read_time": 30,
+        "prerequisites": ["day-38-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day38-t3-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day38-t3-txt-strategic-problem",
+          "content": "<p>MISRA C contains over 150 rules. Memorizing them is impossible. Expecting human engineers to catch every implicit type conversion or missing <code>{ }</code> bracket during GitHub Pull Request reviews is statistically guaranteed to fail. If compliance relies on human discipline, the system will eventually crash. To guarantee mathematical adherence to the MISRA standard, we must physically prevent non-compliant C code from compiling. We achieve this by integrating <strong>Static Analysis Tools</strong> (like <code>cppcheck</code> and <code>clang-tidy</code>) natively into our CI/CD build pipelines.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day38-t3-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day38-t3-api-main",
+          "signature": "$ cppcheck --enable=all --addon=misra.py src/\n$ clang-tidy -checks='-*,misra-*' engine.c -- -std=c11",
+          "description": "CLI tools that parse and analyze the C Abstract Syntax Tree (AST) without executing the code.",
+          "parameters": [
+            { "name": "--addon=misra.py", "type": "cppcheck Flag", "description": "Loads the MISRA ruleset script to evaluate the code against safety-critical constraints." },
+            { "name": "-checks='misra-*'", "type": "clang-tidy Flag", "description": "Instructs the LLVM static analyzer to strictly enforce all available MISRA diagnostic checks." }
+          ],
+          "returns": { "type": "N/A", "description": "Fails the build process (returns a non-zero exit code) if any MISRA violation is detected." },
+          "complexity": "O(N) codebase parsing time. Runs directly on the developer's laptop or in the CI/CD cloud.",
+          "exceptions": "Static analysis detects syntax and type violations, but cannot detect runtime logic flaws (which require dynamic Fuzzing)."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day38-t3-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day38-t3-txt-mechanics",
+          "content": "<p>Static Analysis tools do not compile your code to Assembly, nor do they run it through the CPU. They act as the \"Front-End\" of a compiler. They parse your <code>.c</code> files into an Abstract Syntax Tree (AST). They then traverse this tree, applying thousands of mathematical constraint checks. If a node in the tree represents an assignment where the left-hand type is <code>uint16_t</code> and the right-hand type is <code>int</code>, the analyzer flags a MISRA Rule 10.4 violation. Because they do not execute the code, they catch dormant bugs in edge-case <code>if</code> branches that standard Unit Tests might never trigger.</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day38-t3-svg-mechanics",
+          "caption": "Terminal output of clang-tidy intercepting a MISRA violation.",
+          "alt_text": "A simulated terminal window showing a clang-tidy error, highlighting an implicit integer conversion and citing the specific MISRA rule violated.",
+          "svg_code": "<svg viewBox='0 0 600 250' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='250' fill='#1e1e1e' rx='4'/><circle cx='20' cy='20' r='6' fill='#ff5f56'/><circle cx='40' cy='20' r='6' fill='#ffbd2e'/><circle cx='60' cy='20' r='6' fill='#27c93f'/><text x='20' y='60' fill='#fff' font-family='monospace' font-size='12'>$ clang-tidy -checks='-*,misra-*' engine.c</text><text x='20' y='90' fill='#ff5f56' font-family='monospace' font-size='12' font-weight='bold'>engine.c:42:15: error: essential type of the left hand operand</text><text x='20' y='110' fill='#ff5f56' font-family='monospace' font-size='12' font-weight='bold'>is not the same as that of the right operand [misra-c2012-rule-10.4]</text><text x='20' y='140' fill='#fff' font-family='monospace' font-size='12'>   42 |     uint32_t speed = 100;</text><text x='20' y='160' fill='#fff' font-family='monospace' font-size='12'>      |               ^</text><text x='20' y='180' fill='#ffbd2e' font-family='monospace' font-size='12'>note: implicitly converting integer literal '100' (type 'int')</text><text x='20' y='200' fill='#ffbd2e' font-family='monospace' font-size='12'>to 'uint32_t' (aka 'unsigned int')</text></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day38-t3-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day38-t3-txt-debug-intro",
+          "content": "<p>Analyze the following snippet. What silent, catastrophic failure will <code>cppcheck</code> flag before the code is ever executed?</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day38-t3-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The Dormant Out-Of-Bounds",
+          "code": "#include &lt;stdint.h&gt;\n\nvoid calibrate_gyroscopes(void) {\n    uint32_t gyro_offsets[3] = {0U, 0U, 0U};\n    \n    // Engineer adjusts bounds dynamically based on sensor count\n    uint8_t sensor_count = 4U;\n    \n    // DANGER: An out-of-bounds write is structurally guaranteed here\n    for (uint8_t i = 0U; i < sensor_count; i++) {\n        gyro_offsets[i] = 100U;\n    }\n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day38-t3-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "The array `gyro_offsets` is allocated with exactly 3 elements (indices 0, 1, 2). However, the loop is hardcoded to execute 4 times. When `i == 3`, the code writes `100U` physically past the end of the array, smashing the adjacent Stack Memory. In traditional C testing, if this function is rarely called, the bug lies dormant. Because `cppcheck` evaluates the Abstract Syntax Tree, it mathematically proves that `sensor_count` is 4, and the array size is 3. It will instantly throw an `arrayIndexOutOfBounds` fatal error during the CI/CD pipeline, physically preventing the firm from deploying the corrupted firmware." }
+          ]
+        },
+        {
+          "type": "callout",
+          "block_id": "day38-t3-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Treat Warnings as Errors (-Werror):</strong> Static analysis is useless if developers ignore the terminal output. You must configure your C compiler to treat all warnings as fatal errors (<code>-Wall -Wextra -Werror</code>). A single uninitialized variable warning must literally halt the entire deployment pipeline until explicitly resolved.</li><li><strong>Dynamic vs Static Analysis:</strong> Tools like AddressSanitizer (Day 36) are <em>Dynamic</em>; they catch bugs while the code is actively running in memory. Tools like <code>cppcheck</code> are <em>Static</em>; they catch bugs by reading the text file. You MUST use both. Static analysis prevents syntactic and type violations. Dynamic analysis catches complex, unpredictable state corruptions caused by chaotic network inputs.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day38-t3-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day38-t3-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "What is the primary operational difference between a Static Analysis tool (like `cppcheck`) and a Dynamic Analysis tool (like `AddressSanitizer`)?",
+              "options": [
+                { "id": "t3-q1-a", "text": "Static analysis checks the network; Dynamic analysis checks the hard drive.", "is_correct": false, "explanation": "Neither tool is bound to those specific domains." },
+                { "id": "t3-q1-b", "text": "Static analysis parses the source code's Syntax Tree mathematically without ever executing the program, catching type violations and guaranteed bounds errors. Dynamic analysis actively executes the binary in memory to catch complex runtime state corruptions.", "is_correct": true, "explanation": "Elite engineering architectures universally deploy both layers of analysis." },
+                { "id": "t3-q1-c", "text": "Static analysis requires root privileges.", "is_correct": false, "explanation": "It purely reads text files; no execution privileges are required." },
+                { "id": "t3-q1-d", "text": "Dynamic analysis is required to enforce MISRA C rules.", "is_correct": false, "explanation": "MISRA is enforced statically; it governs syntax and typing rules." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

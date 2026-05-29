@@ -1,0 +1,697 @@
+{
+  "day": 10,
+  "module": "3: Strings, Preprocessor, and TDD",
+  "topics": [
+    {
+      "header_hub": {
+        "title": "Assertions and the Minimal Test Harness",
+        "category": "Tooling",
+        "complexity": "Intermediate",
+        "standard": "C89/C99",
+        "read_time": 25,
+        "prerequisites": ["day-9-topic-3"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day10-t1-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day10-t1-txt-strategic-problem",
+          "content": "<p>In C, there is no built-in, heavy-weight testing framework like Java's JUnit or Python's pytest. Historically, C developers relied on injecting <code>printf</code> statements to manually verify program state, a tedious and unscalable anti-pattern. To build mission-critical systems, engineers must adopt Test-Driven Development (TDD) by writing automated code that validates other code. At the lowest level, this requires halting the program the instant an impossible state is reached. We achieve this using the foundational diagnostic tool: the <code>assert()</code> macro.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t1-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day10-t1-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;assert.h&gt;</span>\nassert(expression);",
+          "description": "Evaluates a logical expression. If the expression evaluates to 0 (false), it instantly aborts the program and dumps diagnostic info to stderr.",
+          "parameters": [
+            { "name": "expression", "type": "Scalar", "description": "Any expression that evaluates to an integer/boolean value." }
+          ],
+          "returns": { "type": "void", "description": "Returns nothing if successful. Terminates the process if it fails." },
+          "complexity": "O(1) condition check.",
+          "exceptions": "Raises SIGABRT (Abort signal) upon failure, dumping a core file if configured."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t1-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day10-t1-txt-mechanics",
+          "content": "<p><code>assert()</code> is not a function; it is a Preprocessor Macro. When you write <code>assert(x == 5);</code>, the preprocessor uses special internal macros (<code>__FILE__</code>, <code>__LINE__</code>, and <code>__func__</code>) to capture the exact location of the failure. If the condition is false, it prints a highly specific error message to <code>stderr</code> and triggers the <code>abort()</code> system call. Crucially, asserts can be globally stripped from the final production binary by defining the <code>NDEBUG</code> (No Debug) macro during compilation.</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day10-t1-svg-mechanics",
+          "caption": "The Preprocessor Expansion of the assert() macro.",
+          "alt_text": "Visual showing assert(ptr != NULL) expanding into an if-statement that calls abort() with file and line metadata.",
+          "svg_code": "<svg viewBox='0 0 600 200' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='200' fill='var(--bg-card)'/><g transform='translate(20, 20)'><rect x='0' y='0' width='240' height='40' fill='var(--bg-hover)' stroke='var(--accent)' stroke-width='2' rx='4'/><text x='120' y='25' fill='var(--text-primary)' font-family='monospace' font-weight='bold' text-anchor='middle'>assert(ptr != NULL);</text></g><path d='M140 60 L140 100' stroke='var(--text-secondary)' stroke-width='3' marker-end='url(#arrow)' stroke-dasharray='4,4'/><g transform='translate(20, 100)'><rect x='0' y='0' width='560' height='80' fill='rgba(239, 68, 68, 0.1)' stroke='var(--danger-border)' stroke-width='2' rx='4'/><text x='20' y='25' fill='var(--danger-border)' font-family='monospace' font-size='12'>if (!(ptr != NULL)) {</text><text x='40' y='45' fill='var(--text-primary)' font-family='monospace' font-size='12'>fprintf(stderr, \"Assertion failed: %s, file %s, line %d\", ...);</text><text x='40' y='65' fill='var(--danger-border)' font-family='monospace' font-size='12'>abort();</text><text x='20' y='85' fill='var(--danger-border)' font-family='monospace' font-size='12'>}</text></g><defs><marker id='arrow' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--text-secondary)'/></marker></defs></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t1-sec-trench-story",
+          "title": "Production Trench Story"
+        },
+        {
+          "type": "callout",
+          "block_id": "day10-t1-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage: The NDEBUG Erasure",
+          "content": "<p>A defense contractor wrote a routine to rotate encryption keys: <code>assert(rotate_keys() == SUCCESS);</code>. During development and testing, everything worked flawlessly. The build pipeline then compiled the firmware for final release using the standard production flag <code>-DNDEBUG</code> (to remove debugging overhead). Because <code>assert()</code> is a macro, <code>NDEBUG</code> caused the preprocessor to replace the ENTIRE line of code with an empty space. The <code>rotate_keys()</code> function was literally deleted from the compiled binary. The drone deployed, failed to rotate its keys, rejected secure comms, and triggered a self-destruct failsafe.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t1-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day10-t1-cb-assert",
+          "language": "c",
+          "header": "1. Standard Assertions",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;assert.h&gt;\n\nvoid calculate_speed(int distance, int time) {\n    // Trap impossible state. If time is 0, the program will instantly abort\n    // printing: \"Assertion 'time > 0' failed at main.c:6\"\n    assert(time > 0);\n    \n    int speed = distance / time;\n    printf(\"Speed: %d\\n\", speed);\n}"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day10-t1-cb-custom-harness",
+          "language": "c",
+          "header": "2. Building a Minimal Test Harness",
+          "code": "#include &lt;stdio.h&gt;\n\n// A custom macro that doesn't abort the whole suite on failure, \n// allowing multiple tests to run and reporting the final score.\n#define TEST_EQ(expected, actual) do { \\\n    if ((expected) != (actual)) { \\\n        printf(\"[FAIL] %s:%d: Expected %d, got %d\\n\", __FILE__, __LINE__, (expected), (actual)); \\\n        failures++; \\\n    } else { \\\n        printf(\"[PASS] %s:%d\\n\", __FILE__, __LINE__); \\\n        passes++; \\\n    } \\\n} while(0)\n\nint passes = 0;\nint failures = 0;\n\nint add(int a, int b) { return a + b; }\n\nint main() {\n    TEST_EQ(5, add(2, 3));\n    TEST_EQ(10, add(5, 5));\n    printf(\"Results: %d Passed, %d Failed\\n\", passes, failures);\n    return failures == 0 ? 0 : 1;\n}"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day10-t1-cb-static-assert",
+          "language": "c",
+          "header": "3. Compile-Time Assertions (C11)",
+          "code": "#include &lt;assert.h&gt;\n#include &lt;stdint.h&gt;\n\n// _Static_assert (or static_assert in C11) evaluates at COMPILE TIME.\n// It incurs zero runtime overhead. If it fails, the binary refuses to compile.\n// This is elite-level architecture enforcement.\n\nstruct NetworkHeader {\n    uint32_t id;\n    uint16_t length;\n    uint8_t flags;\n}; // 7 bytes theoretically, but compiler padding might make it 8.\n\n// We mandate that this struct must be exactly 7 bytes to match a hardware spec.\nstatic_assert(sizeof(struct NetworkHeader) == 7, \"Header struct contains illegal padding!\");"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t1-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day10-t1-txt-debug-intro",
+          "content": "<p>Analyze the following broken snippet. Find the vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day10-t1-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The Side-Effect Trap",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;stdlib.h&gt;\n#include &lt;assert.h&gt;\n\nint buffer_count = 0;\n\nint init_buffer() {\n    buffer_count = 100;\n    return 1; // Success\n}\n\nint main() {\n    // Ensure the buffer initializes correctly\n    assert(init_buffer() == 1);\n    \n    // DANGER: If compiled with `gcc -DNDEBUG main.c`\n    printf(\"Buffer count: %d\\n\", buffer_count);\n    return 0;\n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day10-t1-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "When the code is compiled for production using `-DNDEBUG`, the preprocessor redefines the `assert()` macro to evaluate to `((void)0)` (a no-op). The expression inside the assert—the actual function call to `init_buffer()`—is completely erased from the source code before the compiler even sees it. The buffer is never initialized, and `buffer_count` prints as 0. Fix: Never place state-mutating logic inside an `assert()`. Assign the result to a variable first: `int status = init_buffer(); assert(status == 1);`. The variable survives `NDEBUG`." }
+          ]
+        },
+        {
+          "type": "callout",
+          "block_id": "day10-t1-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>No Side Effects:</strong> Absolutely no function calls that mutate state, increment operations (<code>i++</code>), or assignments (<code>x = 5</code>) are allowed inside an <code>assert()</code>. It must be a pure, read-only query.</li><li><strong>Asserts are for Devs, Not Users:</strong> Never use <code>assert()</code> to validate user input or network data (e.g., <code>assert(file_exists)</code>). Asserts are for trapping impossible architectural bugs (e.g., <code>assert(pointer != NULL)</code> on internal APIs). Validate user input with standard <code>if</code> statements and graceful error handling.</li><li><strong>C11 Static Asserts:</strong> Use <code>_Static_assert</code> aggressively to enforce architectural constraints at compile time (e.g., verifying <code>sizeof(int) == 4</code> or ensuring struct padding is correct).</li><li><strong>Test Segregation:</strong> Test logic must never be compiled into the production binary. Use conditional compilation (<code>#ifdef TEST</code>) or completely separate <code>.c</code> files for your test harnesses.</li><li><strong>Abort Signal Trapping:</strong> Remember that <code>assert()</code> calls <code>abort()</code>. This bypasses standard exit handlers (like <code>atexit()</code>) and violently kills the process.</li></ul>"
+        },
+        {
+          "type": "callout",
+          "block_id": "day10-t1-callout-antipatterns",
+          "variant": "danger",
+          "color": "var(--danger-border)",
+          "title": "Fatal Anti-Patterns",
+          "content": "<ul><li><strong>Production Assertions:</strong> Releasing a binary to customers with asserts enabled. If a minor, non-fatal edge case triggers an assert, the entire application crashes to desktop instead of recovering. Always compile release builds with <code>-DNDEBUG</code>.</li><li><strong>Testing Equality on Floats:</strong> Writing <code>TEST_EQ(3.14f, result_float);</code>. As learned previously, precision drift will cause the test to randomly fail. You must build a <code>TEST_FLOAT_EQ(expected, actual, epsilon)</code> macro.</li><li><strong>Ignoring Core Dumps:</strong> Trapping an abort but failing to configure the OS to generate a core dump file. Without the core dump, you lose the exact stack trace of what caused the assertion failure in CI/CD.</li><li><strong>String Comparison with ==:</strong> Writing <code>TEST_EQ(\"Success\", status_msg);</code>. This compares the memory addresses of the pointers, not the string content. Tests will fail despite identical text. You must use <code>strcmp</code>.</li><li><strong>Silent Test Failures:</strong> A test harness that prints \"FAIL\" but still returns <code>0</code> from <code>main()</code>. CI/CD pipelines only look at the exit status. A return of 0 tells Jenkins/GitLab that the tests passed, merging broken code.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t1-sec-challenges",
+          "title": "Industrial Challenges"
+        },
+        {
+          "type": "text",
+          "block_id": "day10-t1-txt-challenges",
+          "content": "<ul><li><strong>Embedded Reset Loops:</strong> On microcontrollers, calling <code>abort()</code> usually halts the processor indefinitely. In safety-critical systems, engineers must override the assert macro to trigger a safe hardware Watchdog Reset and log the failure to non-volatile EEPROM before dying.</li><li><strong>Testing Static Functions:</strong> If a helper function is marked <code>static</code>, it is hidden from the Linker. An external test file (<code>test_math.c</code>) cannot link to it. Engineers must either `#include \"math.c\"` directly into the test file (messy) or use `#ifdef TEST` to conditionally strip the `static` keyword.</li><li><strong>Framework Bloat:</strong> C testing frameworks like Unity or CMocka require complex CMake integration and add massive amounts of boilerplate. For low-level drivers, creating a custom minimal macro harness is often faster and less fragile.</li><li><strong>The NDEBUG Ambiguity:</strong> Some third-party libraries define `NDEBUG` internally, silently disabling your application's assertions if you include their headers in the wrong order.</li><li><strong>Continuous Integration Bottlenecks:</strong> Running thousands of unit tests natively is fast, but testing embedded firmware requires compiling the tests for ARM, flashing them to a physical board via JTAG, running them, and parsing the serial output back to the CI server.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t1-sec-silicon",
+          "title": "The Silicon Bridge"
+        },
+        {
+          "type": "text",
+          "block_id": "day10-t1-txt-silicon",
+          "content": "<p>When <code>assert()</code> triggers <code>abort()</code>, the kernel physically sends a <code>SIGABRT</code> signal to the process. The OS freezes the process, maps its entire physical RAM footprint, CPU registers, and Stack traces, and dumps them directly to the hard drive as a \"Core Dump\" file. A systems engineer can then load this core file into GDB (<code>gdb ./app core</code>) and interrogate the exact state of the silicon at the nanosecond the program died.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day10-t1-cb-assembly",
+          "language": "nasm",
+          "header": "Assembly Verification (The NDEBUG Erasure)",
+          "code": "; Without NDEBUG:\n; The compiler generates the branch and the function call to the error handler.\ncmp     DWORD PTR [rbp-4], 0\njne     .L2\nmov     edi, OFFSET FLAT:.LC0 ; \"Assertion failed...\"\ncall    __assert_fail\n\n; With -DNDEBUG:\n; The compiler receives an empty file from the preprocessor. \n; ZERO assembly instructions are generated for the assertion."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t1-sec-qa",
+          "title": "Mastery Q&A"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day10-t1-qa-mastery",
+          "items": [
+            { "question": "Why does `assert()` use `abort()` instead of `exit()`?", "answer": "`exit()` gracefully shuts down the program, flushes open file buffers, and calls teardown handlers. If an assert fails, it means memory or state is critically corrupted. Flushing buffers might write corrupted data to disk. `abort()` violently and immediately kills the process to prevent further damage." },
+            { "question": "How do `__FILE__` and `__LINE__` work?", "answer": "They are intrinsic compiler macros. During the preprocessor stage, the compiler mechanically replaces `__FILE__` with a string literal of the current filename, and `__LINE__` with the literal integer of the current line number. They have zero runtime calculation cost." },
+            { "question": "Is it okay to use `assert()` to check if `malloc` fails?", "answer": "No. Out-of-memory is an expected runtime environmental failure, not a programmer logic bug. Production code must recover gracefully from OOM states, but asserts are stripped in production. `malloc` failures must be checked with standard `if` statements." },
+            { "question": "What is the difference between `_Static_assert` and `#error`?", "answer": "`#error` is evaluated by the preprocessor before the compiler understands types or sizes. `_Static_assert` is evaluated during compilation, allowing it to mathematically analyze `sizeof()` and struct layouts." },
+            { "question": "How do I return a failure to a CI/CD pipeline like GitHub Actions?", "answer": "The `main()` function of your test runner must return a non-zero integer (e.g., `return 1;`). The shell interprets 0 as success and anything else as a fatal failure, which instantly turns the pipeline red." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t1-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day10-t1-quiz-mastery",
+          "time_limit_seconds": 375,
+          "questions": [
+            {
+              "question": "What happens to `assert(x == 5);` when you compile the code with `gcc -DNDEBUG main.c`?",
+              "options": [
+                { "id": "t1-q1-a", "text": "It is compiled but configured to only print a warning instead of aborting.", "is_correct": false, "explanation": "NDEBUG completely neutralizes the macro." },
+                { "id": "t1-q1-b", "text": "The preprocessor replaces it with an empty statement, meaning absolutely zero code or overhead is injected into the final binary.", "is_correct": true, "explanation": "NDEBUG redefines the `assert` macro to `((void)0)`, completely stripping it from the AST before the compiler sees it." },
+                { "id": "t1-q1-c", "text": "It throws a compilation error.", "is_correct": false, "explanation": "It compiles cleanly." },
+                { "id": "t1-q1-d", "text": "It forces the assertion to evaluate at compile-time instead of runtime.", "is_correct": false, "explanation": "That is `_Static_assert`." }
+              ]
+            },
+            {
+              "question": "Why is `assert(file_ptr = fopen(\"data.txt\", \"r\"));` a fatal architectural flaw?",
+              "options": [
+                { "id": "t1-q2-a", "text": "File operations are too slow for assertions.", "is_correct": false, "explanation": "Speed is not the issue." },
+                { "id": "t1-q2-b", "text": "It contains a single `=` assignment, which evaluates to true if the pointer is not NULL.", "is_correct": false, "explanation": "This is true, but it's not the fatal flaw." },
+                { "id": "t1-q2-c", "text": "Because it contains a side effect (mutating state). When compiled with NDEBUG for production, the entire `fopen` call is deleted, the file is never opened, and the program crashes later.", "is_correct": true, "explanation": "Never place logic that mutates state inside an assert. The logic will vanish in production builds." },
+                { "id": "t1-q2-d", "text": "fopen returns a file descriptor, not a true/false value.", "is_correct": false, "explanation": "Pointers evaluate to true/false natively in C." }
+              ]
+            },
+            {
+              "question": "If you are writing a custom test macro `TEST_EQ(a, b)`, why must the logic be wrapped in a `do { ... } while(0)` block?",
+              "options": [
+                { "id": "t1-q3-a", "text": "To force the compiler to loop until the test passes.", "is_correct": false, "explanation": "It loops zero times because the condition is false." },
+                { "id": "t1-q3-b", "text": "To ensure the multi-line macro behaves safely as a single logical statement if it is injected into an un-braced `if/else` block.", "is_correct": true, "explanation": "Without the `do-while(0)`, the semicolon at the end of the macro call will prematurely terminate the `if` block, leaving dangling `else` clauses and breaking the AST." },
+                { "id": "t1-q3-c", "text": "To prevent variable shadowing inside the macro.", "is_correct": false, "explanation": "It provides scope, but safety in conditionals is the primary reason." },
+                { "id": "t1-q3-d", "text": "To enable the `continue` keyword.", "is_correct": false, "explanation": "You shouldn't use continue in a test macro." }
+              ]
+            },
+            {
+              "question": "What is the specific use case for `_Static_assert` (or `static_assert`) introduced in C11?",
+              "options": [
+                { "id": "t1-q4-a", "text": "To assert conditions only inside static functions.", "is_correct": false, "explanation": "It is unrelated to static functions." },
+                { "id": "t1-q4-b", "text": "To evaluate mathematical bounds checks at runtime without halting the program.", "is_correct": false, "explanation": "It stops compilation, not runtime." },
+                { "id": "t1-q4-c", "text": "To evaluate expressions at compile-time. If the expression is false, the compiler refuses to build the binary, making it perfect for enforcing `sizeof` constraints.", "is_correct": true, "explanation": "It provides a zero-overhead way to ensure that structs are aligned correctly or that types are the expected size on unknown architectures." },
+                { "id": "t1-q4-d", "text": "To assert that a variable is stored in the `.bss` segment.", "is_correct": false, "explanation": "It tests constants, not memory segments." }
+              ]
+            },
+            {
+              "question": "Why is using `assert()` to validate user input (e.g., checking if a user provided a negative age) incorrect?",
+              "options": [
+                { "id": "t1-q5-a", "text": "Asserts cannot evaluate negative numbers.", "is_correct": false, "explanation": "They evaluate any scalar." },
+                { "id": "t1-q5-b", "text": "Asserts are stripped in production builds. The invalid user input will bypass the check completely in the release binary.", "is_correct": true, "explanation": "Asserts are for developer logic bugs. User input validation requires permanent, production-grade `if` statements and error handling routines." },
+                { "id": "t1-q5-c", "text": "Asserts cause memory leaks if triggered.", "is_correct": false, "explanation": "The OS reclaims all memory on abort." },
+                { "id": "t1-q5-d", "text": "Asserts are significantly slower than standard if-statements.", "is_correct": false, "explanation": "They compile to identical branch logic." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Linker Seams and Dependency Mocking",
+        "category": "Architecture",
+        "complexity": "Expert",
+        "standard": "GCC / Linux Linker",
+        "read_time": 30,
+        "prerequisites": ["day-10-topic-1", "day-5-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day10-t2-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day10-t2-txt-strategic-problem",
+          "content": "<p>A core tenet of TDD is isolating the function under test. If you want to test <code>process_temperature()</code>, but it internally calls <code>read_i2c_sensor()</code>, your test will fail on the CI server because the CI server doesn't have the physical hardware sensor attached. In Object-Oriented languages, developers use Interfaces and Dependency Injection to pass \"Fake\" or \"Mock\" objects. C does not have interfaces. To isolate C functions, elite systems engineers manipulate the <strong>Linker</strong>. By exploiting Linker Seams or injecting Function Pointers, we can hijack function calls at compile-time and reroute them to safe, controllable Mock functions.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t2-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day10-t2-api-main",
+          "signature": "gcc -Wl,--wrap=target_function ...\n<span class=\"syntax-kw\">int</span> __wrap_target_function();\n<span class=\"syntax-kw\">int</span> __real_target_function();",
+          "description": "GCC linker flag that intercepts calls to a specific function and redirects them to a wrapper function.",
+          "parameters": [
+            { "name": "-Wl", "type": "GCC Flag", "description": "Instructs GCC to pass the following comma-separated flags directly down to the Linker (ld)." },
+            { "name": "--wrap=symbol", "type": "Linker Flag", "description": "Any undefined reference to 'symbol' is resolved to '__wrap_symbol'." },
+            { "name": "__real_symbol", "type": "Magic Symbol", "description": "Allows the wrapper function to call the original, un-mocked function if necessary." }
+          ],
+          "returns": { "type": "N/A", "description": "Modifies the Symbol Table resolution during the linking phase." },
+          "complexity": "O(1) execution. Adds zero runtime overhead.",
+          "exceptions": "Only works on GCC/Clang via GNU ld. Will not work if the function is 'static' or heavily inlined."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t2-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day10-t2-txt-mechanics",
+          "content": "<p>When <code>main.c</code> calls <code>read_sensor()</code>, the compiler leaves a \"hole\" in the object file, expecting the Linker to patch it with the actual memory address of <code>read_sensor</code>. When we pass <code>--wrap=read_sensor</code>, we command the Linker to lie. The Linker scans the symbol table, finds the hole, and instead wires it to the address of our custom <code>__wrap_read_sensor()</code> function. The original source code is completely unaware that its hardware call has been hijacked by a software mock.</p>"
+        },
+        {
+          "type": "mermaid_diagram",
+          "block_id": "day10-t2-mermaid-linker",
+          "syntax": "graph TD\n    A[Code: call read_sensor] --> B{Linker Resolution}\n    B -->|Normal Compilation| C[Resolve to real read_sensor in hardware.c]\n    B -->|Test Compilation with --wrap| D[Resolve to __wrap_read_sensor in mock.c]\n    D --> E[Mock returns fake data e.g. 50]\n    classDef file fill:#18181b,stroke:#3b82f6,stroke-width:2px,color:#f4f4f5;\n    classDef danger fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#f4f4f5;\n    classDef success fill:rgba(16,185,129,0.1),stroke:#10b981,stroke-width:2px,color:#f4f4f5;\n    class A,B file;\n    class C danger;\n    class D,E success;"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t2-sec-trench-story",
+          "title": "Production Trench Story"
+        },
+        {
+          "type": "callout",
+          "block_id": "day10-t2-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage: The Live Ignition Test",
+          "content": "<p>An aerospace engineering team wrote a test suite for a rocket stage-separation controller. The function <code>verify_separation()</code> internally called <code>fire_pyro_bolts()</code>. Because C lacks native object mocking, the engineers simply bypassed testing that specific function. A junior developer later added a \"Test All\" script that ran the suite on the physical integration hardware. Because <code>fire_pyro_bolts()</code> wasn't mocked out via the Linker, the test executed the real function. The explosive bolts detonated inside the laboratory, destroying a $400,000 prototype structure. If they had compiled the test suite with <code>-Wl,--wrap=fire_pyro_bolts</code>, the explosion would have been a harmless console print.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t2-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day10-t2-cb-wrap",
+          "language": "c",
+          "header": "1. Mocking via GCC Linker Flags",
+          "code": "// --- production.c ---\n#include &lt;stdio.h&gt;\n// Pretend this reads from a physical I2C hardware pin\nint read_sensor() { return 100; }\n\nint check_alarm() {\n    if (read_sensor() > 90) return 1; // ALARM\n    return 0;\n}\n\n// --- test.c ---\n#include &lt;stdio.h&gt;\n#include &lt;assert.h&gt;\n\n// We create a global variable to control what our mock returns\nint mock_sensor_val = 0;\n\n// The Linker will hijack all calls to read_sensor and route them here\nint __wrap_read_sensor() {\n    return mock_sensor_val;\n}\n\nint main() {\n    // Inject fake hardware data\n    mock_sensor_val = 95;\n    assert(check_alarm() == 1); // Test passes without touching hardware!\n    return 0;\n}\n// Compile: gcc production.c test.c -Wl,--wrap=read_sensor"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day10-t2-cb-func-ptr",
+          "language": "c",
+          "header": "2. Dependency Injection via Function Pointers",
+          "code": "#include &lt;stdio.h&gt;\n\n// If GCC --wrap is not available, we inject dependencies manually.\n// We define a struct containing function pointers (A poor man's Interface).\ntypedef struct {\n    int (*read_sensor)(void);\n} HardwareAPI;\n\n// The logic function relies entirely on the injected API.\nint check_alarm(HardwareAPI *api) {\n    if (api->read_sensor() > 90) return 1;\n    return 0;\n}\n\n// --- In our Test File ---\nint fake_read() { return 50; }\n\nint main() {\n    // We \"Inject\" the fake function into the API struct\n    HardwareAPI mock_api = { .read_sensor = fake_read };\n    \n    assert(check_alarm(&mock_api) == 0);\n    return 0;\n}"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t2-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day10-t2-txt-debug-intro",
+          "content": "<p>Analyze the following broken snippet. Find the vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day10-t2-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The Static Shield",
+          "code": "// --- engine.c ---\n#include &lt;stdio.h&gt;\n\nstatic int fetch_database_key() {\n    // Connects to a live production database\n    return 0xDEADBEEF;\n}\n\nint authenticate() {\n    return fetch_database_key() == 0xDEADBEEF;\n}\n\n// --- test.c ---\n// Engineer attempts to mock the database call using GCC --wrap\nint __wrap_fetch_database_key() {\n    return 0x1234;\n}\n\n// Compiled with: gcc engine.c test.c -Wl,--wrap=fetch_database_key"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day10-t2-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "The test will fail because it will STILL connect to the live production database! The target function `fetch_database_key` was marked with the `static` keyword. As learned previously, `static` forces Internal Linkage, hiding the function name from the global Symbol Table. Because the symbol is hidden, the Linker literally cannot see it. The GCC `--wrap` flag fails silently because it cannot find a symbol to hijack, so the original `authenticate` function calls the real `static` implementation. Fix: You must strip the `static` keyword during test builds using a macro, e.g., `#define STATIC`, which maps to empty space in test mode." }
+          ]
+        },
+        {
+          "type": "callout",
+          "block_id": "day10-t2-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Test Seam Planning:</strong> Do not write a 1,000-line monolithic function. Break hardware interactions (I/O, Database, Network) into small, isolated functions specifically so they can be wrapped or injected during testing.</li><li><strong>Function Pointer Overhead:</strong> Dependency injection via function pointers (<code>api-&gt;read()</code>) provides architectural beauty but prevents the compiler from inlining the function. It adds a slight pipeline stall on every call. Use it sparingly in high-frequency hot paths.</li><li><strong>The <code>__real_</code> Fallback:</strong> If you use <code>--wrap=malloc</code> to test Out-Of-Memory conditions, you can still call the actual system <code>malloc</code> from inside your wrapper by calling <code>__real_malloc(size)</code>. This allows partial mocking.</li><li><strong>Mock State Resets:</strong> If your mock function uses global variables to control its return values (e.g., <code>mock_return_val</code>), you MUST reset those globals in a <code>teardown()</code> function before every single test, otherwise tests will pollute each other's state.</li><li><strong>Linker Specificity:</strong> The <code>--wrap</code> flag is a GNU LD feature. It is not part of the ISO C standard. If your team migrates to MSVC (Windows) or a niche embedded compiler, the tests will instantly break. Abstract it via CMake.</li></ul>"
+        },
+        {
+          "type": "callout",
+          "block_id": "day10-t2-callout-antipatterns",
+          "variant": "danger",
+          "color": "var(--danger-border)",
+          "title": "Fatal Anti-Patterns",
+          "content": "<ul><li><strong>Mocking the World:</strong> Using `--wrap` on every single function in your codebase. If you mock everything, you are testing your mocks, not your business logic. Only mock the absolute boundaries (Hardware, OS, Network).</li><li><strong>Macro Mocking:</strong> Using `#define read_sensor fake_read` to mock functions. This causes catastrophic text-substitution bugs if `read_sensor` is used as a variable name or struct field elsewhere in the file.</li><li><strong>Uninitialized Function Pointers:</strong> Creating a Dependency Injection struct but forgetting to assign a function to the pointer. <code>api-&gt;read()</code> will execute memory address 0x0, instantly Segfaulting the application.</li><li><strong>Testing Static Functions directly:</strong> Using `#include \"source.c\"` in your test file to gain access to static functions. This compiles the entire source code twice, causing multiple-definition Linker crashes across the test suite.</li><li><strong>LTO Erasure:</strong> Using Link-Time Optimization (<code>-flto</code>) during test compilation. LTO aggressively cross-examines object files and will likely inline or delete the functions you are trying to wrap, neutralizing your mocks.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t2-sec-challenges",
+          "title": "Industrial Challenges"
+        },
+        {
+          "type": "text",
+          "block_id": "day10-t2-txt-challenges",
+          "content": "<ul><li><strong>Integration Test Over-Reliance:</strong> Because unit testing in C is historically difficult, many hardware teams rely purely on Integration Testing (flashing the firmware to a device and running Python scripts against it). This is incredibly slow and finds bugs weeks after they were written, destroying the rapid-feedback loop of TDD.</li><li><strong>The Header V-Table Bloat:</strong> Building massive structs of function pointers (a V-Table) to emulate C++ object-oriented interfaces consumes significant RAM. On a tiny embedded system, an array of 50 API interfaces can eat up the entire SRAM stack.</li><li><strong>CMake Wrapping Complexity:</strong> Managing `-Wl,--wrap` across a massive project requires dense CMake scripting. You must only apply the wrap flags to the specific test executable targets, not the production binaries, requiring surgical `target_link_options` commands.</li><li><strong>Testing Time-Based Logic:</strong> Functions that rely on `time(NULL)` or `gettimeofday()` are notoriously difficult to test. You must use linker seams to wrap the OS time functions and inject deterministic \"Fake Time\" to ensure tests don't fail randomly at midnight.</li><li><strong>Third-Party Library Conflicts:</strong> If you use `--wrap=malloc` to track memory leaks in your code, you will also accidentally hijack the `malloc` calls made by `printf` and `glibc` internally, causing recursive loops and stack overflows in your test suite.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t2-sec-silicon",
+          "title": "The Silicon Bridge"
+        },
+        {
+          "type": "text",
+          "block_id": "day10-t2-txt-silicon",
+          "content": "<p>When using Function Pointers for Dependency Injection, the CPU executes an <strong>Indirect Call</strong>. A standard function call (<code>call 0x400500</code>) is hardcoded into the silicon instructions; the CPU knows exactly where it's going. An indirect call (<code>call rax</code>) means the CPU must wait for the pointer address to load from RAM into the <code>rax</code> register before it can jump. The CPU Branch Predictor attempts to guess the destination, but if you swap mocks frequently, it mispredicts, stalling the 15-stage hardware pipeline.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day10-t2-cb-assembly",
+          "language": "nasm",
+          "header": "Assembly Verification (Indirect Function Calls)",
+          "code": "; Dependency Injection (Function Pointer) Call:\n; rdi contains the pointer to the 'api' struct.\nmov     rax, QWORD PTR [rdi]  ; Fetch the function pointer from the struct\ncall    rax                   ; INDIRECT JUMP: The CPU must wait for rax to resolve\n\n; Standard / Linker-Wrapped Call:\ncall    read_sensor           ; DIRECT JUMP: Instantaneous. The Linker \n                              ; hardcoded the mock's address here at compile time."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t2-sec-qa",
+          "title": "Mastery Q&A"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day10-t2-qa-mastery",
+          "items": [
+            { "question": "Is using the Linker to mock functions considered a 'hack'?", "answer": "No. It is a highly respected, industry-standard technique in C systems engineering (used extensively in frameworks like CMocka). It allows you to achieve test isolation without polluting your production code with function pointers or `#ifdef TEST` macros." },
+            { "question": "Why didn't my `--wrap` flag work on a function inside the same file?", "answer": "The Linker only resolves *external* symbols. If `main()` and `read_sensor()` are in the exact same `.c` file, the compiler calculates the jump natively during assembly generation. The Linker is never asked to resolve it, so it cannot wrap it. Wrapped functions must exist across object file boundaries." },
+            { "question": "Can I mock standard library functions like `open` or `read`?", "answer": "Yes. Passing `-Wl,--wrap=open` will successfully hijack all calls your code makes to the POSIX `open()` syscall, allowing you to simulate file system failures and hardware unplugs." },
+            { "question": "What is 'Duck Typing' and does C support it via function pointers?", "answer": "Duck Typing means 'if it walks like a duck, it is a duck'. By passing a struct of function pointers, C loosely achieves this. Any struct that provides the matching function signatures can be passed into the logic layer, creating polymorphism in C." },
+            { "question": "How do I test a function that doesn't return anything (`void`)?", "answer": "You test its *Side Effects*. If a void function writes to a global array, triggers an LED hardware pin, or updates a state struct, your test harness must read that array, pin, or struct after the function returns and `assert()` the values." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t2-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day10-t2-quiz-mastery",
+          "time_limit_seconds": 375,
+          "questions": [
+            {
+              "question": "What is the primary mechanism that allows the `-Wl,--wrap=func` flag to hijack a function call?",
+              "options": [
+                { "id": "t2-q1-a", "text": "It modifies the source code using the Preprocessor.", "is_correct": false, "explanation": "It operates long after the preprocessor is finished." },
+                { "id": "t2-q1-b", "text": "It intercepts the Linker's symbol resolution phase, forcing any undefined reference to `func` to map to the memory address of `__wrap_func` instead.", "is_correct": true, "explanation": "The Linker essentially lies to the calling object file, wiring the physical assembly jump to your test mock rather than the production function." },
+                { "id": "t2-q1-c", "text": "It pauses the OS Kernel to reroute the CPU instruction pointer.", "is_correct": false, "explanation": "It operates strictly at compile/link time." },
+                { "id": "t2-q1-d", "text": "It replaces function pointers dynamically at runtime.", "is_correct": false, "explanation": "Wrapping is static; function pointers are dynamic." }
+              ]
+            },
+            {
+              "question": "Why must you design your C architecture carefully if you plan to use Linker seams for mocking?",
+              "options": [
+                { "id": "t2-q2-a", "text": "Because the Linker cannot wrap functions that return pointers.", "is_correct": false, "explanation": "It can wrap any signature." },
+                { "id": "t2-q2-b", "text": "Because the Linker cannot wrap `static` functions or functions called from within the exact same `.c` file, as the compiler resolves those jumps internally before the Linker runs.", "is_correct": true, "explanation": "To mock a function via the Linker, it must have External Linkage (not static) and the caller must be in a different translation unit." },
+                { "id": "t2-q2-c", "text": "Because Linker seams require floating-point arithmetic.", "is_correct": false, "explanation": "It is purely address mapping." },
+                { "id": "t2-q2-d", "text": "Because wrapper functions cannot accept arguments.", "is_correct": false, "explanation": "Wrappers accept the exact same arguments as the original." }
+              ]
+            },
+            {
+              "question": "You successfully wrap `malloc` using `--wrap=malloc`. Inside `__wrap_malloc`, you want to allocate memory, log it, and return it. How do you call the real `malloc` from inside your wrapper?",
+              "options": [
+                { "id": "t2-q3-a", "text": "Call `malloc(size);`", "is_correct": false, "explanation": "This causes infinite recursion, as `malloc` routes back to `__wrap_malloc`." },
+                { "id": "t2-q3-b", "text": "Call `__real_malloc(size);`", "is_correct": true, "explanation": "The GNU Linker automatically provides the `__real_symbol` prefix to allow the wrapper to pass execution back to the original implementation." },
+                { "id": "t2-q3-c", "text": "Call `system_malloc(size);`", "is_correct": false, "explanation": "That symbol does not exist." },
+                { "id": "t2-q3-d", "text": "You cannot call the real function from a wrapper.", "is_correct": false, "explanation": "You absolutely can, facilitating partial mocks and spyware." }
+              ]
+            },
+            {
+              "question": "What is the primary architectural disadvantage of using a struct of Function Pointers (Dependency Injection) instead of Linker Wrapping?",
+              "options": [
+                { "id": "t2-q4-a", "text": "It requires the use of C++.", "is_correct": false, "explanation": "Structs with function pointers are native C." },
+                { "id": "t2-q4-b", "text": "It makes testing impossible.", "is_correct": false, "explanation": "It makes testing easier." },
+                { "id": "t2-q4-c", "text": "It forces an 'Indirect Call' in hardware, stalling the CPU pipeline and preventing the compiler from inlining the function for maximum performance.", "is_correct": true, "explanation": "Because the pointer is read from RAM at runtime, the CPU cannot pre-calculate the jump. Linker wrapping uses direct, hardcoded jumps." },
+                { "id": "t2-q4-d", "text": "Function pointers cannot return values.", "is_correct": false, "explanation": "They can return any value." }
+              ]
+            },
+            {
+              "question": "A test suite utilizes a global variable `int mock_network_state = 200;` to control what the mock `__wrap_read_socket` returns. If there are 50 tests in the suite, what is the most critical vulnerability?",
+              "options": [
+                { "id": "t2-q5-a", "text": "The variable will overflow.", "is_correct": false, "explanation": "State integers rarely overflow from test assignments." },
+                { "id": "t2-q5-b", "text": "The global state 'pollutes' subsequent tests. If Test 1 sets it to 404 and fails to reset it, Test 2 will run against 404 instead of 200, causing baffling, cascading false-positive failures.", "is_correct": true, "explanation": "Mock state management is the hardest part of C testing. You must meticulously reset all globals in a `setup()` or `teardown()` function before every single test." },
+                { "id": "t2-q5-c", "text": "Global variables are illegal in test suites.", "is_correct": false, "explanation": "They are heavily used, just dangerous." },
+                { "id": "t2-q5-d", "text": "The Linker will reject the global variable.", "is_correct": false, "explanation": "The Linker happily links it." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Code Coverage and Instrumentation",
+        "category": "Tooling",
+        "complexity": "Advanced",
+        "standard": "GCC / Gcov",
+        "read_time": 25,
+        "prerequisites": ["day-10-topic-1", "day-10-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day10-t3-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day10-t3-txt-strategic-problem",
+          "content": "<p>Writing tests with <code>assert()</code> and mocking hardware with <code>--wrap</code> ensures your code behaves correctly. However, a test suite is functionally blind if you don't know <em>what you missed</em>. Did your test suite actually trigger the <code>if (timeout)</code> error-handling block? Did it execute the <code>default</code> case in the switch statement? To achieve rigorous software reliability, we must mathematically prove that our tests executed every line of code and evaluated every logical branch. We achieve this using Compiler Instrumentation and Code Coverage tools (Gcov).</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t3-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day10-t3-api-main",
+          "signature": "gcc -fprofile-arcs -ftest-coverage source.c\n./a.out\ngcov source.c",
+          "description": "GCC compilation flags that physically alter the binary to track its own execution pathways at runtime.",
+          "parameters": [
+            { "name": "-fprofile-arcs", "type": "GCC Flag", "description": "Injects hidden assembly instructions to count how many times each logical branch is taken." },
+            { "name": "-ftest-coverage", "type": "GCC Flag", "description": "Generates a .gcno file mapping the compiled assembly blocks back to the original C source lines." },
+            { "name": "gcov", "type": "CLI Tool", "description": "Parses the resulting data (.gcda) to generate a human-readable text report." }
+          ],
+          "returns": { "type": "File Output", "description": "Produces .gcno (compile time), .gcda (run time), and .gcov (analysis time) files." },
+          "complexity": "Increases binary size and significantly reduces execution speed due to counter overhead.",
+          "exceptions": "Do NOT use these flags in production release builds. They are strictly for CI/CD test phases."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t3-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day10-t3-txt-mechanics",
+          "content": "<p>When you compile with coverage flags, GCC alters the Abstract Syntax Tree. It breaks your C code into \"Basic Blocks\" (sequential instructions without jumps). At the start of every block, it physically injects an invisible <code>counter++</code> operation into the assembly. When you run the resulting binary (e.g., your test suite), it literally counts itself. When the program exits, it dumps these counters into a <code>.gcda</code> file on disk. <strong>Line Coverage</strong> tells you if a line was hit. <strong>Branch Coverage</strong> tells you if an <code>if</code> statement was evaluated as both true AND false.</p>"
+        },
+        {
+          "type": "mermaid_diagram",
+          "block_id": "day10-t3-mermaid-coverage",
+          "syntax": "graph TD\n    A[Compile with -fprofile-arcs] --> B[Compiler injects physical counters into Assembly]\n    B --> C[Run Test Suite Binary]\n    C --> D{Program Executes}\n    D -->|Executes True Branch| E[Counter A++]\n    D -->|Test misses False Branch| F[Counter B remains 0]\n    E --> G[Binary Exits: Dumps counters to .gcda file]\n    G --> H[Gcov Analysis: Warns that False Branch is untested!]\n    classDef file fill:#18181b,stroke:#3b82f6,stroke-width:2px,color:#f4f4f5;\n    class A,B,C,D,E,F,G,H file;"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t3-sec-trench-story",
+          "title": "Production Trench Story"
+        },
+        {
+          "type": "callout",
+          "block_id": "day10-t3-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage: The 100% Line Coverage Lie",
+          "content": "<p>A payments gateway team proudly achieved 100% Line Coverage on their processing engine. A week later, the gateway crashed, rejecting thousands of valid credit cards. The crash occurred on this line: <code>int discount = (user_tier == VIP) ? calc_discount(ptr) : 0;</code>. The tests had evaluated the tier as <code>STANDARD</code>, executing the <code>: 0</code> half. The line was marked \"Covered\". In production, a user logged in as <code>VIP</code>. The code executed <code>calc_discount(ptr)</code>. But <code>ptr</code> was NULL. Because the tests never evaluated the <em>True Branch</em> of the ternary operator, the NULL dereference was never caught. The team immediately switched their CI pipeline to enforce 100% <strong>Branch Coverage</strong> instead.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t3-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day10-t3-cb-code",
+          "language": "c",
+          "header": "The Target Function (logic.c)",
+          "code": "int process_data(int input) {\n    if (input > 10) {\n        return 1;\n    }\n    \n    if (input < 0) {\n        return -1;\n    }\n    \n    return 0;\n}"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day10-t3-cb-gcov",
+          "language": "bash",
+          "header": "Executing the Gcov Pipeline",
+          "code": "# 1. Compile with instrumentation flags\n$ gcc -fprofile-arcs -ftest-coverage logic.c test.c -o test_runner\n\n# 2. Run the tests (This physically generates the .gcda data file)\n$ ./test_runner\n\n# 3. Analyze the branch coverage\n$ gcov -b logic.c\n\n# Output Example:\n# File 'logic.c'\n# Lines executed:80.00% of 5\n# Branches executed:100.00% of 4\n# Taken at least once:75.00% of 4  <-- Danger! A branch was never taken."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t3-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day10-t3-txt-debug-intro",
+          "content": "<p>Analyze the following broken snippet. Gcov reports that Line 6 is <strong>Unreachable Code</strong> (0% coverage). Find the vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day10-t3-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The Unreachable Block",
+          "code": "int validate_packet(unsigned int length) {\n    if (length < 0) {\n        // GCOV highlights this line as physically unreachable!\n        return -1; \n    }\n    \n    if (length > 1024) {\n        return 0; // Invalid\n    }\n    return 1; // Valid\n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day10-t3-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "The parameter `length` is declared as an `unsigned int`. Unsigned integers, by mathematical definition, cannot be less than zero; they wrap around to large positive numbers. Therefore, the condition `if (length < 0)` is a tautology that is mathematically impossible to evaluate as true. The compiler knows this, and the Gcov analysis physically proves that no test case can ever penetrate that block. Fix: Either change the parameter to a signed `int`, or remove the impossible boundary check entirely to eliminate dead code." }
+          ]
+        },
+        {
+          "type": "callout",
+          "block_id": "day10-t3-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Branch Coverage is King:</strong> Line coverage is a vanity metric. Achieving 100% line coverage does not mean your code works; it means the CPU touched every line. You MUST mandate Branch Coverage (Decision Coverage) in CI pipelines to ensure every logical combination is mapped.</li><li><strong>Never Instrument Production:</strong> The <code>-fprofile-arcs</code> flag physically injects thousands of addition operations (<code>add [counter], 1</code>) across your codebase. Releasing this to production will slow execution speeds by 20% to 50%. Strip all coverage flags for release builds.</li><li><strong>Treat Unreachable Code as Bugs:</strong> If Gcov proves a block of code is <code>#####</code> (never hit) despite exhaustive testing, it usually means the code is mathematically unreachable (a logic error) or entirely obsolete. Delete it.</li><li><strong>Lcov for Humans:</strong> Raw Gcov output is difficult to read. Industry standard dictates piping `.gcda` files through <code>lcov</code> to generate an interactive, color-coded HTML dashboard for code reviews.</li><li><strong>Fuzzing as a Supplement:</strong> Coverage tells you what you missed, but it doesn't write tests for you. Combine Gcov with Fuzzing (AFL++) to automatically generate inputs that force execution down those un-covered, obscure error branches.</li></ul>"
+        },
+        {
+          "type": "callout",
+          "block_id": "day10-t3-callout-antipatterns",
+          "variant": "danger",
+          "color": "var(--danger-border)",
+          "title": "Fatal Anti-Patterns",
+          "content": "<ul><li><strong>Ignoring Error Paths:</strong> Writing tests that only follow the \"Happy Path\" (successful inputs) to quickly achieve 80% line coverage. The untested 20% contains all the `malloc` failure and `NULL` pointer error handling. When those trigger in production, they crash.</li><li><strong>Coverage Driven Development:</strong> Forcing developers to hit an arbitrary 100% metric. Engineers will write useless tests without asserts just to \"touch\" the lines, satisfying the metric while testing absolutely nothing.</li><li><strong>Ternary Operator Abuse:</strong> Writing `int x = a ? b : c;`. Because this is technically one line of code, basic coverage tools mark it fully covered if `a` is true just once. The `c` logic remains entirely untested and explosive.</li><li><strong>Testing with Optimizations:</strong> Compiling coverage binaries with `-O3`. The compiler will inline functions, unroll loops, and delete dead code, heavily skewing the Gcov metrics and making the report impossible to map back to the source code. Always use `-O0` for coverage.</li><li><strong>Concurrent Coverage Corruption:</strong> If multiple threads execute the instrumented binary simultaneously, they will race to increment the exact same global coverage counters in RAM, corrupting the `.gcda` output.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t3-sec-challenges",
+          "title": "Industrial Challenges"
+        },
+        {
+          "type": "text",
+          "block_id": "day10-t3-txt-challenges",
+          "content": "<ul><li><strong>Embedded Target Extraction:</strong> If you compile firmware for an ARM microcontroller with coverage flags, the `.gcda` file is generated *in the RAM of the microcontroller*. Getting that file off the drone and back to your laptop to run `gcov` requires writing custom serial-port or JTAG extraction scripts.</li><li><strong>Mock File Pollution:</strong> When generating coverage reports, the tools will include your test files and your wrapper mock files in the final percentage. You must manually filter the `lcov` command to exclude `test_*.c` to ensure you are only measuring the production logic.</li><li><strong>The Panic Edge Cases:</strong> Achieving 100% branch coverage often requires simulating hardware faults (e.g., the hard drive literally catching fire during a write). Orchestrating these faults via linker wrappers is exceptionally difficult and time-consuming.</li><li><strong>Macro Expansions:</strong> Gcov maps execution back to physical line numbers. If you have a massive multi-line `#define` macro that contains branching logic, Gcov treats the entire macro invocation as a single line, completely obscuring the internal coverage.</li><li><strong>MC/DC Compliance:</strong> In aerospace/automotive (DO-178C standard), simple Branch Coverage is illegal. They mandate Modified Condition/Decision Coverage (MC/DC), requiring proof that every sub-condition (e.g., `A` and `B` in `if (A && B)`) independently affected the outcome. Standard Gcov struggles with strict MC/DC reporting.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t3-sec-silicon",
+          "title": "The Silicon Bridge"
+        },
+        {
+          "type": "text",
+          "block_id": "day10-t3-txt-silicon",
+          "content": "<p>When you enable <code>-fprofile-arcs</code>, you are asking the compiler to actively sabotage its own silicon efficiency. To track branches, the compiler injects a global array into the <code>.bss</code> segment (e.g., <code>long __gcov_counters[100];</code>). Before every single assembly jump (<code>je</code>, <code>jne</code>), it injects an instruction to fetch the memory address of the counter, add 1, and write it back to RAM. This destroys L1 cache efficiency and inflates the binary size drastically, visually proving the Heisenberg principle of software: observing the code changes the code.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day10-t3-cb-assembly",
+          "language": "nasm",
+          "header": "Assembly Verification (Gcov Instrumentation)",
+          "code": "; Standard Assembly:\ncmp  eax, 10\njg   .L_GREATER\n\n; Instrumented Assembly (What Gcov physically does to your binary):\ncmp  eax, 10\njle  .L_SKIP\n; -- GCOV INJECTION START --\nmov  rdx, QWORD PTR __gcov_counters[rip+16] ; Load specific counter\nadd  rdx, 1                                 ; Increment\nmov  QWORD PTR __gcov_counters[rip+16], rdx ; Store to RAM\n; -- GCOV INJECTION END --\njmp  .L_GREATER\n.L_SKIP:"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t3-sec-qa",
+          "title": "Mastery Q&A"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day10-t3-qa-mastery",
+          "items": [
+            { "question": "What is the difference between `.gcno` and `.gcda` files?", "answer": "The `.gcno` (Notes) file is generated during Compilation. It contains a map connecting the basic assembly blocks to your C source code lines. The `.gcda` (Data) file is generated during Runtime. It contains the actual integer counts of how many times those blocks were hit. `gcov` merges them to create the report." },
+            { "question": "Why does Gcov highlight my closing brace `}` as executed?", "answer": "The closing brace often acts as the return point for the function's exit sequence. The compiler attributes the stack cleanup instructions (`leave`, `ret`) to the line containing the brace. If it's highlighted, it means the function successfully exited." },
+            { "question": "If I run the test suite twice, do the coverage numbers reset?", "answer": "No. The C runtime appends to the `.gcda` file. If you run the test suite twice, every line count will double. You must explicitly delete all `*.gcda` files (`make clean`) before starting a fresh coverage run." },
+            { "question": "Can I use Gcov with Clang instead of GCC?", "answer": "Yes. Clang supports Gcov-compatible flags (`--coverage`), but modern LLVM tooling prefers its own native toolchain: `llvm-cov`. The syntax is slightly different, but the architectural mechanics are identical." },
+            { "question": "Is 100% Branch Coverage always achievable?", "answer": "Usually, no. If you write defensive code like `if (ptr == NULL) abort();` immediately after a guaranteed successful allocation, you can never trigger that branch without injecting a hardware fault. 90% branch coverage is typically the industry standard limit." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day10-t3-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day10-t3-quiz-mastery",
+          "time_limit_seconds": 375,
+          "questions": [
+            {
+              "question": "What physically happens to your binary when you compile it with `-fprofile-arcs`?",
+              "options": [
+                { "id": "t3-q1-a", "text": "The compiler attaches a debugger process to monitor execution.", "is_correct": false, "explanation": "Debuggers run externally. Coverage alters the internal binary." },
+                { "id": "t3-q1-b", "text": "The compiler deletes all optimization logic to make the code linear.", "is_correct": false, "explanation": "-O0 does this, but -fprofile-arcs is a separate mechanism." },
+                { "id": "t3-q1-c", "text": "The compiler physically alters the assembly code, injecting memory read/write instructions to increment hidden global counters for every logical branch evaluated.", "is_correct": true, "explanation": "This active instrumentation is why the binary inflates in size and slows down during execution." },
+                { "id": "t3-q1-d", "text": "It exports the C source code into the binary headers.", "is_correct": false, "explanation": "The source code map goes to the .gcno file, not the binary." }
+              ]
+            },
+            {
+              "question": "Why is 'Line Coverage' considered a dangerous vanity metric compared to 'Branch Coverage'?",
+              "options": [
+                { "id": "t3-q2-a", "text": "Line coverage cannot track loops.", "is_correct": false, "explanation": "It tracks loops perfectly." },
+                { "id": "t3-q2-b", "text": "Because multiple logical branches can exist on a single line (like the ternary operator `a ? b : c`). Line coverage marks it 'covered' if just one half runs, leaving the other half untested and vulnerable.", "is_correct": true, "explanation": "A line executing does not mean every possible CPU pathway on that line was explored. Branch coverage proves every decision point went both True and False." },
+                { "id": "t3-q2-c", "text": "Line coverage requires debug symbols.", "is_correct": false, "explanation": "Both metrics require instrumentation data." },
+                { "id": "t3-q2-d", "text": "Line coverage is not supported by Gcov.", "is_correct": false, "explanation": "Gcov reports both line and branch coverage." }
+              ]
+            },
+            {
+              "question": "An engineer notices Gcov reports 0% coverage on `if (sizeof(int) == 2) { handle_16bit(); }` on a modern 64-bit Linux server. Why?",
+              "options": [
+                { "id": "t3-q3-a", "text": "Gcov ignores hardware-specific code.", "is_correct": false, "explanation": "Gcov tracks everything compiled." },
+                { "id": "t3-q3-b", "text": "The condition evaluates at compile-time to false. The compiler deletes the block as dead code, making it mathematically unreachable during runtime testing.", "is_correct": true, "explanation": "Because `sizeof(int)` is 4, the compiler sees `if (4 == 2)`, realizes it is permanently false, and removes the branch from the assembly. Gcov accurately marks it untouched." },
+                { "id": "t3-q3-c", "text": "The test harness lacked the correct Linker wrap.", "is_correct": false, "explanation": "Linker seams don't apply to sizeof checks." },
+                { "id": "t3-q3-d", "text": "The integer overflowed during compilation.", "is_correct": false, "explanation": "Sizeof calculations are perfectly safe." }
+              ]
+            },
+            {
+              "question": "Why is it absolutely forbidden to deploy a binary compiled with `-ftest-coverage` and `-fprofile-arcs` to production?",
+              "options": [
+                { "id": "t3-q4-a", "text": "It requires an internet connection to upload the .gcda files.", "is_correct": false, "explanation": "Files are written locally." },
+                { "id": "t3-q4-b", "text": "The injected counters cause severe L1 cache thrashing, massively slowing down the application, and the process will attempt to write `.gcda` files to the customer's hard drive upon exit.", "is_correct": true, "explanation": "Coverage is highly invasive. It ruins performance and leaves garbage files on the host OS." },
+                { "id": "t3-q4-c", "text": "It bypasses ASLR and Stack Canaries.", "is_correct": false, "explanation": "It doesn't disable security mitigations." },
+                { "id": "t3-q4-d", "text": "It causes all Assertions to be ignored.", "is_correct": false, "explanation": "Assertions still function normally." }
+              ]
+            },
+            {
+              "question": "You ran your test suite, viewed the Gcov report, wrote more tests, and ran the suite again. Now your line counts are absurdly high (e.g., a function running 20,000 times instead of 10,000). What happened?",
+              "options": [
+                { "id": "t3-q5-a", "text": "The compiler went into an infinite loop.", "is_correct": false, "explanation": "The loop terminated correctly." },
+                { "id": "t3-q5-b", "text": "The `.gcda` file appends and accumulates counts cumulatively across multiple runs. You forgot to delete it before the second test run.", "is_correct": true, "explanation": "This is a classic trap. You must execute `rm -f *.gcda` (or `make clean`) to purge the historical counter data before generating a new coverage report." },
+                { "id": "t3-q5-c", "text": "The L1 cache over-reported the instruction reads.", "is_correct": false, "explanation": "Cache reads do not affect logical execution counters." },
+                { "id": "t3-q5-d", "text": "A memory leak duplicated the tests in RAM.", "is_correct": false, "explanation": "Memory leaks don't execute tests." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

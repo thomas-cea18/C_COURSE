@@ -1,0 +1,629 @@
+{
+  "day": 1,
+  "module": "1: Professional Environment and Core Fundamentals",
+  "topics": [
+    {
+      "header_hub": {
+        "title": "The Immutable Dev Environment",
+        "category": "Environment",
+        "complexity": "Intermediate",
+        "standard": "POSIX / Docker",
+        "read_time": 25,
+        "prerequisites": []
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day1-t1-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day1-t1-txt-strategic-problem",
+          "content": "<p>C is a compiled language that interfaces directly with the host operating system and hardware architecture. Historically, setting up a C environment involved installing a global compiler toolchain (like GCC or Clang) directly on a developer's host machine. This led to the infamous <em>\"it works on my machine\"</em> paradox. A program compiling flawlessly for a developer on macOS or Ubuntu 22.04 can fail catastrophically in production due to mismatched standard library (<code>glibc</code>) versions, different kernel headers, or differing default compiler flags.</p><p>To operate at a Principal level, systems engineers must sever their reliance on host operating systems. The solution is wrapping the entire toolchain in an immutable Docker container, ensuring bit-for-bit reproducibility across all developer machines and CI/CD pipelines.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t1-sec-api",
+          "title": "Container Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day1-t1-api-main",
+          "signature": "FROM ubuntu:24.04\nRUN apt-get install -y gcc clang gdb make",
+          "description": "Docker provides OS-level virtualization to deliver software in packages called containers, heavily utilizing Linux namespaces and cgroups.",
+          "parameters": [
+            { "name": "FROM", "type": "Instruction", "description": "Defines the base Linux image containing the specific glibc version your target requires." },
+            { "name": "RUN", "type": "Instruction", "description": "Executes shell commands to install the compiler, debugger, and build systems." }
+          ],
+          "returns": { "type": "Container Image", "description": "A static, versioned snapshot of your build environment." },
+          "complexity": "O(1) environment drift. Near-zero runtime CPU overhead.",
+          "exceptions": "Fails natively if host architecture (e.g., Apple ARM64) misaligns with image architecture (AMD64) without translation."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t1-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day1-t1-txt-mechanics",
+          "content": "<p>Unlike Virtual Machines that emulate physical hardware, Docker containers share the host machine's Linux kernel. They use Linux <code>namespaces</code> to isolate processes, network interfaces, and mount points (providing the illusion of a dedicated filesystem), and <code>cgroups</code> to limit RAM and CPU usage. When you run GCC inside a container on a Linux host, it executes native machine code directly on the CPU, but it believes it is operating within a pristine Ubuntu root filesystem.</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day1-t1-svg-mechanics",
+          "caption": "Hardware emulation (VMs) vs OS-level virtualization (Containers).",
+          "alt_text": "A diagram comparing Virtual Machines carrying a guest OS versus Containers sharing the host kernel.",
+          "svg_code": "<svg viewBox='0 0 600 200' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='200' fill='var(--bg-card)'/><g transform='translate(40, 20)'><rect width='200' height='160' fill='none' stroke='var(--border-light)' stroke-width='2'/><text x='100' y='20' fill='var(--text-secondary)' font-family='monospace' font-size='12' text-anchor='middle'>Virtual Machine</text><rect x='10' y='40' width='180' height='30' fill='var(--bg-hover)'/><text x='100' y='60' fill='var(--text-primary)' font-family='monospace' font-size='12' text-anchor='middle'>GCC / App</text><rect x='10' y='80' width='180' height='30' fill='rgba(239, 68, 68, 0.1)' stroke='var(--danger-border)'/><text x='100' y='100' fill='var(--danger-border)' font-family='monospace' font-size='12' text-anchor='middle'>Guest OS (Heavy)</text><rect x='10' y='120' width='180' height='30' fill='var(--bg-hover)'/><text x='100' y='140' fill='var(--text-primary)' font-family='monospace' font-size='12' text-anchor='middle'>Hypervisor</text></g><g transform='translate(360, 20)'><rect width='200' height='160' fill='none' stroke='var(--border-light)' stroke-width='2'/><text x='100' y='20' fill='var(--text-secondary)' font-family='monospace' font-size='12' text-anchor='middle'>Docker Container</text><rect x='10' y='40' width='180' height='30' fill='var(--bg-hover)'/><text x='100' y='60' fill='var(--text-primary)' font-family='monospace' font-size='12' text-anchor='middle'>GCC / App</text><rect x='10' y='80' width='180' height='30' fill='rgba(16, 185, 129, 0.1)' stroke='var(--success-border)'/><text x='100' y='100' fill='var(--success-border)' font-family='monospace' font-size='12' text-anchor='middle'>Container Engine</text><rect x='10' y='120' width='180' height='30' fill='var(--bg-hover)'/><text x='100' y='140' fill='var(--text-primary)' font-family='monospace' font-size='12' text-anchor='middle'>Host OS Kernel</text></g></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t1-sec-cli",
+          "title": "System Interaction"
+        },
+        {
+          "type": "cli_session",
+          "block_id": "day1-t1-cli-execution",
+          "lines": [
+            { "type": "command", "prompt": "user@host:~$", "content": "docker build -t c-systems-env ." },
+            { "type": "output", "content": "Sending build context to Docker daemon... \nStep 1/3 : FROM ubuntu:24.04\nStep 2/3 : RUN apt-get install gcc\nSuccessfully built 8a9b0c1d2e3f" },
+            { "type": "command", "prompt": "user@host:~$", "content": "docker run --rm -v $(pwd):/workspace -w /workspace -it c-systems-env /bin/bash" },
+            { "type": "command", "prompt": "root@container:/workspace#", "content": "gcc --version" },
+            { "type": "output", "content": "gcc (Ubuntu 13.2.0-23ubuntu4) 13.2.0" }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t1-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day1-t1-cb-dockerfile",
+          "language": "dockerfile",
+          "header": "Dockerfile",
+          "code": "FROM ubuntu:24.04\n\n# Prevent interactive prompts blocking the automated build\nENV DEBIAN_FRONTEND=noninteractive\n\n# Install core elite C toolchain\nRUN apt-get update && apt-get install -y \\\n    build-essential \\\n    gcc clang gdb valgrind \\\n    make cmake strace \\\n    && rm -rf /var/lib/apt/lists/*\n\nWORKDIR /workspace"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day1-t1-cb-devcontainer",
+          "language": "json",
+          "header": ".devcontainer/devcontainer.json",
+          "code": "{\n  \"name\": \"C Systems Environment\",\n  \"build\": { \"dockerfile\": \"Dockerfile\" },\n  \"customizations\": {\n    \"vscode\": {\n      \"extensions\": [\n        \"ms-vscode.cpptools\",\n        \"ms-vscode.cmake-tools\"\n      ]\n    }\n  }\n}"
+        },
+        {
+          "type": "callout",
+          "block_id": "day1-t1-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Absolute Pinning:</strong> Never use <code>ubuntu:latest</code>. Always pin to a specific LTS release (e.g., <code>24.04</code>) so your build environment does not silently mutate.</li><li><strong>Single Source of Truth:</strong> The Dockerfile is the absolute authority on how to build the code. If a library needs to be installed, it must be scripted.</li><li><strong>Workspace Mounting:</strong> Bind-mount your local source code into the container's <code>/workspace</code> to use your native host IDE while isolating the compiler.</li><li><strong>Cache Invalidation:</strong> Group stable <code>RUN apt-get</code> commands early in the Dockerfile, and frequently changing commands later, to maximize layer caching.</li><li><strong>Clean After Install:</strong> Always run <code>rm -rf /var/lib/apt/lists/*</code> in the same <code>RUN</code> layer as your installation to prevent image bloat.</li></ul>"
+        },
+        {
+          "type": "callout",
+          "block_id": "day1-t1-callout-antipatterns",
+          "variant": "danger",
+          "color": "var(--danger-border)",
+          "title": "Fatal Anti-Patterns",
+          "content": "<ul><li>Running as <code>root</code> inside the container in production. While acceptable in local Dev Containers, compiling code as root can mask permission errors.</li><li>Installing bloated IDEs (Eclipse) or GUI tools inside the container. The container should only hold the CLI compiler and debugger.</li><li>Hardcoding host-specific absolute paths (like <code>/Users/bob/project</code>) inside the Dockerfile, instantly breaking it for other developers.</li><li>Copying the build output (`.o` files) into the Docker image permanently, bloating the registry footprint instead of using multi-stage builds.</li><li>Failing to include a <code>.dockerignore</code> file, accidentally copying massive <code>.git</code> histories or local build artifacts into the build context.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t1-sec-challenges",
+          "title": "Industrial Challenges"
+        },
+        {
+          "type": "text",
+          "block_id": "day1-t1-txt-challenges",
+          "content": "<ul><li><strong>Cross-Platform IO Penalties:</strong> On macOS/Windows, Docker runs inside a hidden lightweight VM. Bind-mounting tens of thousands of files across this VM boundary causes severe disk I/O penalties.</li><li><strong>Hardware Access:</strong> If developing embedded systems, containers block direct access to USB ports and hardware devices by default. Special flags (e.g., <code>--privileged</code>, <code>--device</code>) must be configured.</li><li><strong>Corporate Proxies:</strong> Fetching apt packages from inside a corporate network often fails due to self-signed SSL certificates. Root certificates must be explicitly injected into the Docker build process.</li><li><strong>Architecture Emulation:</strong> Compiling an ARM binary on an x86 host using Docker's QEMU emulation is agonizingly slow compared to native cross-compilation toolchains.</li><li><strong>UID/GID Mismatches:</strong> Files created inside the container by the root user will appear as locked/owned by root on the host machine, requiring complex user-mapping strategies.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t1-sec-silicon",
+          "title": "The Silicon Bridge"
+        },
+        {
+          "type": "text",
+          "block_id": "day1-t1-txt-silicon",
+          "content": "<p>When executing a compiled binary, it relies on system calls (like <code>write()</code> or <code>mmap()</code>) handled by the Kernel. Because Docker containers share the host Linux kernel, an executable compiled inside the container translates assembly directly to the host CPU instructions and kernel syscalls with zero virtualization overhead. We can verify this direct execution using <code>strace</code>.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day1-t1-cb-assembly",
+          "language": "bash",
+          "header": "System Verification (strace)",
+          "code": "# Verifying isolation using Linux 'namespace enter' concepts\nroot@container:/# strace -e execve gcc main.c\n# The kernel maps the execution natively, but paths are isolated\nexecve(\"/usr/bin/gcc\", [\"gcc\", \"main.c\"], 0x7ffd...) = 0"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t1-sec-qa",
+          "title": "Mastery Q&A"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day1-t1-qa-mastery",
+          "items": [
+            { "question": "If Docker uses the host kernel, how can I compile a Linux binary on a MacBook?", "answer": "Docker Desktop on macOS silently spins up a hidden, ultra-lightweight Linux Virtual Machine (often using HyperKit or WSL2 on Windows). The container runs inside that VM, which provides the Linux kernel required by GCC." },
+            { "question": "Does compiling in Docker make my code slower?", "answer": "The execution speed of the compiler is identical to bare-metal Linux. However, file I/O operations across bind-mounts (reading/writing to the host disk) can introduce latency on non-Linux hosts." },
+            { "question": "What is the difference between a bind mount (-v) and the COPY instruction?", "answer": "COPY bakes the files directly into the immutable image layer at build time. A bind mount (-v) dynamically links a directory on your host to a path in the running container, allowing live two-way synchronization." },
+            { "question": "Why include `valgrind` and `strace` in the environment image?", "answer": "Standard host machines often lack memory profiling and system call tracing tools. Embedding them in the dev container ensures every engineer can immediately debug segfaults and syscall failures without environmental friction." },
+            { "question": "How do we deploy the compiled C binary without the massive GCC toolchain attached?", "answer": "By using Docker Multi-Stage builds. Stage 1 installs GCC and compiles the binary. Stage 2 (the final image) starts from a bare `ubuntu` image and simply copies the compiled binary from Stage 1, reducing the image size from 1GB+ to ~50MB." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t1-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day1-t1-quiz-mastery",
+          "questions": [
+            {
+              "question": "When defining the base image in a Dockerfile for a C project, why is it considered a fatal anti-pattern to use `FROM ubuntu:latest`?",
+              "options": [
+                { "id": "t1-q1-a", "text": "It forces Docker to download the image from the internet on every single build, wasting bandwidth.", "is_correct": false, "explanation": "Docker caches images locally; it will not download it every time if 'latest' is already pulled." },
+                { "id": "t1-q1-b", "text": "It introduces non-deterministic builds, as 'latest' will eventually point to a new OS version with a different glibc, breaking reproducible compilations.", "is_correct": true, "explanation": "Absolute pinning (e.g., ubuntu:24.04) guarantees that the compiler, standard library, and kernel headers remain identical forever, satisfying the immutability principle." },
+                { "id": "t1-q1-c", "text": "The 'latest' tag does not include the apt package manager.", "is_correct": false, "explanation": "The 'latest' Ubuntu image still includes apt; the issue is version drift, not missing tools." },
+                { "id": "t1-q1-d", "text": "It requires root privileges to pull the 'latest' tag from Docker Hub.", "is_correct": false, "explanation": "Pulling tags is independent of user privileges inside the container." }
+              ]
+            },
+            {
+              "question": "What is the purpose of placing `ENV DEBIAN_FRONTEND=noninteractive` in the Dockerfile?",
+              "options": [
+                { "id": "t1-q2-a", "text": "It disables the bash shell, forcing users to use sh.", "is_correct": false, "explanation": "It does not affect the default shell." },
+                { "id": "t1-q2-b", "text": "It prevents apt-get from pausing the automated build to ask the user interactive configuration questions (e.g., selecting a timezone).", "is_correct": true, "explanation": "Docker builds must be fully automated. Interactive prompts will cause the build to hang indefinitely." },
+                { "id": "t1-q2-c", "text": "It optimizes the GCC compiler for non-interactive background daemons.", "is_correct": false, "explanation": "This environment variable is specific to Debian/Ubuntu package management, not GCC." },
+                { "id": "t1-q2-d", "text": "It prevents the container from opening port 80 to the host.", "is_correct": false, "explanation": "Networking and ports are controlled via EXPOSE or run flags, not this variable." }
+              ]
+            },
+            {
+              "question": "A developer runs `docker run -it c-env` without a bind mount, modifies `main.c` inside the container using vim, and exits. What happens to the modifications?",
+              "options": [
+                { "id": "t1-q3-a", "text": "They are synced back to the host machine automatically.", "is_correct": false, "explanation": "Without a bind mount (-v), the container has no link to the host filesystem." },
+                { "id": "t1-q3-b", "text": "They are permanently saved into the base Docker image.", "is_correct": false, "explanation": "Images are immutable. Runtime changes happen in a temporary writable layer." },
+                { "id": "t1-q3-c", "text": "They are lost immediately because the container filesystem is ephemeral and destroyed upon exit (unless committed).", "is_correct": true, "explanation": "Containers are stateless by default. Bind mounts are required to persist source code changes across container restarts." },
+                { "id": "t1-q3-d", "text": "Docker prevents writing to the filesystem without root access.", "is_correct": false, "explanation": "You can write to the ephemeral layer, it just won't persist." }
+              ]
+            },
+            {
+              "question": "Why should `rm -rf /var/lib/apt/lists/*` be executed in the exact same `RUN` instruction as `apt-get install`?",
+              "options": [
+                { "id": "t1-q4-a", "text": "Docker commits a new immutable layer for every RUN command. Cleaning it in a subsequent RUN command leaves the bloated cache permanently in the previous layer.", "is_correct": true, "explanation": "To truly reduce image size, the cache must be downloaded, used, and deleted within the exact same layer execution." },
+                { "id": "t1-q4-b", "text": "The apt cache locks the filesystem, preventing further commands from executing.", "is_correct": false, "explanation": "The cache does not lock the filesystem after the command completes." },
+                { "id": "t1-q4-c", "text": "It is a requirement of the C compiler.", "is_correct": false, "explanation": "GCC does not interact with the apt package cache." },
+                { "id": "t1-q4-d", "text": "It speeds up the compilation of C code.", "is_correct": false, "explanation": "It only reduces Docker image size; it has zero effect on GCC speed." }
+              ]
+            },
+            {
+              "question": "Which Linux feature allows Docker to restrict the amount of RAM the GCC compiler can consume during a heavy compilation?",
+              "options": [
+                { "id": "t1-q5-a", "text": "Namespaces", "is_correct": false, "explanation": "Namespaces provide isolation (visibility), not resource limits." },
+                { "id": "t1-q5-b", "text": "chroot", "is_correct": false, "explanation": "chroot changes the root directory, but does not limit RAM." },
+                { "id": "t1-q5-c", "text": "Control Groups (cgroups)", "is_correct": true, "explanation": "cgroups are the kernel feature used by Docker to enforce CPU, memory, and I/O limits on processes." },
+                { "id": "t1-q5-d", "text": "Hypervisor", "is_correct": false, "explanation": "Docker uses OS-level virtualization, not a hypervisor, for resource management." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "The 4-Stage Compilation Process",
+        "category": "Architecture",
+        "complexity": "Advanced",
+        "standard": "C Theory",
+        "read_time": 20,
+        "prerequisites": ["day-1-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day1-t2-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day1-t2-txt-strategic-problem",
+          "content": "<p>Running <code>gcc main.c -o app</code> treats the compiler as a monolithic black box. However, C translation is a highly fragmented pipeline. A \"Compilation Error\" could be a Preprocessor macro failure, a Syntax error, an Assembly architecture mismatch, or a Linker symbol resolution failure. Elite engineers must dissect this pipeline to isolate exactly where and why a build fails, and to optimize the intermediate artifacts (like removing dead code at link-time).</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t2-sec-api",
+          "title": "Pipeline Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day1-t2-api-main",
+          "signature": "Source (.c) -> Preprocessor (.i) -> Compiler (.s) -> Assembler (.o) -> Linker (ELF)",
+          "description": "The sequential transformation of human-readable text into operating-system-executable binary code.",
+          "parameters": [
+            { "name": "cpp", "type": "Tool", "description": "C Preprocessor. Handles text substitution (#include, #define)." },
+            { "name": "cc1", "type": "Tool", "description": "The actual C Compiler. Converts C syntax to Assembly mnemonics." },
+            { "name": "as", "type": "Tool", "description": "The Assembler. Converts Assembly to raw machine code (Object file)." },
+            { "name": "ld", "type": "Tool", "description": "The Linker. Wires multiple object files and shared libraries into a single binary." }
+          ],
+          "returns": { "type": "Executable", "description": "Typically an ELF (Executable and Linkable Format) file on Linux." },
+          "complexity": "O(N) for compilation, potentially O(N^2) during Link-Time Optimization.",
+          "exceptions": "Fails sequentially. A preprocessor failure prevents cc1 from ever starting."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t2-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day1-t2-txt-mechanics",
+          "content": "<p>The separation of concerns in the pipeline is brilliant. The <strong>Compiler</strong> doesn't need to know how to write binary opcodes for a specific Intel CPU; it simply emits generic Assembly text. The <strong>Assembler</strong> translates that text to binary but leaves \"holes\" for external functions like <code>printf</code> because it doesn't know where they live in memory. Finally, the <strong>Linker</strong> searches the system for <code>libc.so</code>, calculates the exact memory addresses, and patches those holes so the CPU can jump to the correct location at runtime.</p>"
+        },
+        {
+          "type": "mermaid_diagram",
+          "block_id": "day1-t2-mermaid-pipeline",
+          "syntax": "graph LR\n    A[main.c] -->|1. Preprocessor| B[main.i]\n    B -->|2. Compiler| C[main.s]\n    C -->|3. Assembler| D[main.o]\n    D -->|4. Linker| E((a.out))\n    F[libc.so] -.->|Dynamic Link| E\n    classDef file fill:#18181b,stroke:#3b82f6,stroke-width:2px,color:#f4f4f5;\n    class A,B,C,D,E,F file;"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t2-sec-cli",
+          "title": "System Interaction"
+        },
+        {
+          "type": "cli_session",
+          "block_id": "day1-t2-cli-execution",
+          "lines": [
+            { "type": "command", "prompt": "root@container:/#", "content": "gcc -v main.c -o main" },
+            { "type": "output", "content": "... \n /usr/lib/gcc/x86_64-linux-gnu/11/cc1 -quiet main.c -o /tmp/ccXXXX.s\n as -v --64 -o /tmp/ccYYYY.o /tmp/ccXXXX.s\n /usr/lib/gcc/x86_64-linux-gnu/11/collect2 ... /tmp/ccYYYY.o -lc" }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t2-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day1-t2-cb-source",
+          "language": "c",
+          "header": "1. Source Code (main.c)",
+          "code": "#include <stdio.h>\n#define GREETING \"Hello, Systems\"\n\nint main() {\n    printf(\"%s\\n\", GREETING);\n    return 0;\n}"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day1-t2-cb-preprocessed",
+          "language": "c",
+          "header": "2. Preprocessed (main.i) - Stripped for brevity",
+          "code": "// ... thousands of lines from stdio.h injected here ...\nextern int printf (const char *__restrict __format, ...);\n\nint main() {\n    printf(\"%s\\n\", \"Hello, Systems\"); // Macro GREETING is physically replaced\n    return 0;\n}"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day1-t2-cb-assembly",
+          "language": "nasm",
+          "header": "3. Assembly (main.s)",
+          "code": ".LC0:\n        .string \"Hello, Systems\"\nmain:\n        push    rbp\n        mov     rbp, rsp\n        lea     rdi, .LC0[rip]\n        call    puts@PLT  ; Compiler optimized printf(\"%s\\n\") into puts()\n        mov     eax, 0\n        pop     rbp\n        ret"
+        },
+        {
+          "type": "callout",
+          "block_id": "day1-t2-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Header Inclusion Hygiene:</strong> Never <code>#include</code> a header in another header (<code>.h</code>) if a forward declaration (<code>struct MyStruct;</code>) suffices. The preprocessor copies text verbatim; recursive inclusions exponentially bloat compilation times.</li><li><strong>One Definition Rule (ODR):</strong> You can <em>declare</em> a function in many files (Compiler stage), but you must <em>define</em> it exactly once.</li><li><strong>Header Guards:</strong> Always use `#pragma once` or standard `#ifndef` include guards to prevent the preprocessor from pasting the same struct definition twice in a single translation unit.</li><li><strong>Static Inline:</strong> If you must put function logic inside a header file, mark it `static inline` so the Linker does not throw a multiple definition error when multiple `.c` files include it.</li><li><strong>Opaque Pointers:</strong> Hide struct implementations in the `.c` file and only expose a typedef pointer in the `.h` file to prevent ABI breakage when struct sizes change.</li></ul>"
+        },
+        {
+          "type": "callout",
+          "block_id": "day1-t2-callout-antipatterns",
+          "variant": "danger",
+          "color": "var(--danger-border)",
+          "title": "Fatal Anti-Patterns",
+          "content": "<ul><li><strong>Including .c Files:</strong> Writing <code>#include \"math.c\"</code> instead of <code>.h</code>. This pastes the actual definitions, guaranteeing a Linker multiple-definition crash.</li><li><strong>Global Variables in Headers:</strong> Declaring <code>int global_counter = 0;</code> inside a header. Every file that includes it gets its own definition, shattering the ODR. Use `extern int global_counter;`.</li><li><strong>Blind Trust in Code:</strong> Assuming the compiler generates exactly what you wrote. Compilers optimize heavily (e.g., swapping `printf` for `puts`). Always verify with assembly.</li><li><strong>Ignoring Linker Warnings:</strong> Treating missing symbols as \"minor\" until runtime. The linker will sometimes attempt to resolve weak symbols, leading to silent wrong-function calls.</li><li><strong>Circular Dependencies:</strong> File A includes B, and B includes A. The preprocessor loops until header guards stop it, but types remain incomplete, breaking the AST.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t2-sec-challenges",
+          "title": "Industrial Challenges"
+        },
+        {
+          "type": "text",
+          "block_id": "day1-t2-txt-challenges",
+          "content": "<ul><li><strong>Static Initialization Order Fiasco:</strong> The C standard does not guarantee the order in which global variables across different <code>.c</code> files are initialized before <code>main()</code>. Relying on cross-file global initialization causes non-deterministic crashes.</li><li><strong>Massive Compile Times:</strong> In monolithic codebases (like the Linux Kernel), touching one core header file triggers the preprocessor to invalidate thousands of Translation Units, requiring hours to recompile.</li><li><strong>ABI Drift:</strong> Compiling one object file with a newer compiler version and linking it against older object files can cause silent struct padding mismatches.</li><li><strong>Link-Time Optimization (LTO) Overhead:</strong> Moving optimizations from the Compiler stage to the Linker stage produces faster binaries but requires massive amounts of RAM during the linking phase, often crashing CI servers.</li><li><strong>Symbol Visibility:</strong> Exporting every internal function in a shared library pollutes the Linker's symbol table, causing naming collisions with other libraries.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t2-sec-silicon",
+          "title": "The Silicon Bridge"
+        },
+        {
+          "type": "text",
+          "block_id": "day1-t2-txt-silicon",
+          "content": "<p>At the Assembly stage, variables no longer have names or types. They are mapped directly to physical CPU registers (e.g., <code>rax</code>, <code>rdi</code>) or stack memory offsets (e.g., <code>[rbp-4]</code>). The CPU hardware executes these instructions sequentially, completely unaware of the C constructs (loops, scopes, types, or macros) that originally generated them. C is merely a high-level illusion.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day1-t2-cb-hex",
+          "language": "nasm",
+          "header": "4. Object Code / ELF Binary Hex Dump",
+          "code": "00000000  7f 45 4c 46 02 01 01 00  00 00 00 00 00 00 00 00  |.ELF............|\n00000010  03 00 3e 00 01 00 00 00  30 10 00 00 00 00 00 00  |..>.....0.......|\n# The text and assembly are gone. Only magic bytes and raw opcodes remain."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t2-sec-qa",
+          "title": "Mastery Q&A"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day1-t2-qa-mastery",
+          "items": [
+            { "question": "What is a Translation Unit?", "answer": "A Translation Unit is the ultimate output of the Preprocessor: a single `.c` file with all of its `#include` headers pasted in and macros expanded. It is the atomic unit fed into the Compiler (cc1)." },
+            { "question": "What is the difference between an 'undefined reference' and a 'multiple definition'?", "answer": "An 'undefined reference' means the Linker searched all object files and couldn't find the implementation for a declared function. 'Multiple definition' means the Linker found two or more identical function names in different object files and doesn't know which one to use." },
+            { "question": "Why does a missing semicolon cause 50 lines of errors?", "answer": "Because the Compiler parses code into an Abstract Syntax Tree (AST). A missing semicolon causes the parser to pull the next line of code into the current node, destroying the logical structure of the tree and causing a cascade of subsequent parsing failures." },
+            { "question": "What is the role of crt0 (C runtime zero)?", "answer": "Your program doesn't actually start at `main()`. The Linker automatically attaches a system startup routine (crt0) which sets up the stack, initializes the C standard library, and *then* calls `main()`." },
+            { "question": "Can I look at the AST generated by GCC?", "answer": "Yes. You can use flags like `-fdump-tree-all` to see the intermediate representations (GIMPLE) GCC creates between the C code and the Assembly." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t2-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day1-t2-quiz-mastery",
+          "questions": [
+            {
+              "question": "If you define a macro `#define MAX_BUFFER 1024` but accidentally type a semicolon at the end (`#define MAX_BUFFER 1024;`), which stage of the pipeline will actually throw the error?",
+              "options": [
+                { "id": "t2-q1-a", "text": "The Preprocessor, because it handles macros.", "is_correct": false, "explanation": "The Preprocessor does no syntax checking. It blindly replaces text. It will succeed and paste `1024;` into the code." },
+                { "id": "t2-q1-b", "text": "The Compiler, when it attempts to parse the resulting AST.", "is_correct": true, "explanation": "When the compiler parses `int x = MAX_BUFFER;`, it expands to `int x = 1024;;`, creating a syntax error that breaks the AST." },
+                { "id": "t2-q1-c", "text": "The Assembler, because it cannot translate a semicolon.", "is_correct": false, "explanation": "The pipeline will halt at the Compiler before Assembly is generated." },
+                { "id": "t2-q1-d", "text": "The Linker, because the symbol MAX_BUFFER is undefined.", "is_correct": false, "explanation": "Macros are resolved long before the linker runs. The linker only deals with functions and global variables." }
+              ]
+            },
+            {
+              "question": "You write a function `void init_hardware() { ... }` inside a header file named `hw.h`. You include this header in both `main.c` and `sensor.c`. What happens during compilation?",
+              "options": [
+                { "id": "t2-q2-a", "text": "The compilation fails at the Preprocessor stage due to circular dependencies.", "is_correct": false, "explanation": "Including a file twice in different translation units is not a circular dependency." },
+                { "id": "t2-q2-b", "text": "The compilation succeeds, but execution is slower.", "is_correct": false, "explanation": "It will not succeed." },
+                { "id": "t2-q2-c", "text": "The pipeline halts at the Linker stage with a 'multiple definition' error.", "is_correct": true, "explanation": "The Preprocessor pastes the code into both .c files. The Compiler turns both into .o files. The Linker sees two identical functions named 'init_hardware' in two different object files and crashes (violating the ODR)." },
+                { "id": "t2-q2-d", "text": "The Compiler throws a syntax error.", "is_correct": false, "explanation": "The compiler only sees one Translation Unit at a time, so the code looks perfectly valid to it." }
+              ]
+            },
+            {
+              "question": "What is the primary content of an Object (`.o`) file?",
+              "options": [
+                { "id": "t2-q3-a", "text": "Abstract Syntax Trees (AST).", "is_correct": false, "explanation": "ASTs exist only in memory during the Compiler stage." },
+                { "id": "t2-q3-b", "text": "Relocatable binary machine code.", "is_correct": true, "explanation": "Object files contain raw CPU opcodes, but memory addresses (like jump targets for functions in other files) are left as zero/placeholders for the Linker to resolve." },
+                { "id": "t2-q3-c", "text": "Human-readable Assembly mnemonics.", "is_correct": false, "explanation": "That is the .s file, not the .o file." },
+                { "id": "t2-q3-d", "text": "The fully linked, executable ELF format.", "is_correct": false, "explanation": "The .o file is unlinked. The a.out/ELF file is the final output." }
+              ]
+            },
+            {
+              "question": "Why is the Assembler stage distinct from the Compiler stage in traditional C toolchains?",
+              "options": [
+                { "id": "t2-q4-a", "text": "To allow the compiler to focus purely on C logic/optimizations, offloading the tedious conversion of text-to-binary to a dedicated architecture-specific tool.", "is_correct": true, "explanation": "Separation of concerns. The compiler team writes AST optimizations; the assembler team writes x86/ARM binary encoding tables." },
+                { "id": "t2-q4-b", "text": "Because the Linker cannot read compiler output directly.", "is_correct": false, "explanation": "While true, the deeper reason is architectural separation, not just format." },
+                { "id": "t2-q4-c", "text": "To prevent macro expansion from crashing the CPU.", "is_correct": false, "explanation": "Macros are handled by the preprocessor." },
+                { "id": "t2-q4-d", "text": "It isn't; GCC skips the assembler in modern builds.", "is_correct": false, "explanation": "GCC always uses an assembler (like GNU as) internally." }
+              ]
+            },
+            {
+              "question": "If you receive an `undefined reference to 'sqrt'` error when using the math library, which tool generated this error?",
+              "options": [
+                { "id": "t2-q5-a", "text": "The Preprocessor", "is_correct": false, "explanation": "The preprocessor only cares about text inclusion." },
+                { "id": "t2-q5-b", "text": "The Compiler", "is_correct": false, "explanation": "The compiler sees the declaration in `<math.h>` and assumes the function exists somewhere else." },
+                { "id": "t2-q5-c", "text": "The Linker", "is_correct": true, "explanation": "The Linker tried to resolve the placeholder for `sqrt` but wasn't told to link the math library (missing the `-lm` flag)." },
+                { "id": "t2-q5-d", "text": "The Assembler", "is_correct": false, "explanation": "The assembler just turns the placeholder call into binary." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Using GCC/Clang via CLI",
+        "category": "Tooling",
+        "complexity": "Expert",
+        "standard": "GCC / Clang",
+        "read_time": 20,
+        "prerequisites": ["day-1-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day1-t3-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day1-t3-txt-strategic-problem",
+          "content": "<p>Relying on an IDE's \"Build\" button creates a dependency on an environment you cannot control in a headless Linux server or a CI/CD pipeline. To debug complex build failures, avoid undefined behavior, and optimize performance for specific CPU architectures, you must know how to invoke the compiler driver directly from the Command Line Interface (CLI) and pass precise configuration flags.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t3-sec-api",
+          "title": "CLI Flag Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day1-t3-api-main",
+          "signature": "gcc [warning_flags] [optimization_flags] [control_flags] input.c -o output",
+          "description": "GCC is a 'driver' program that orchestrates the sub-programs (cpp, cc1, as, ld) based on the flags provided.",
+          "parameters": [
+            { "name": "-E", "type": "Control Flag", "description": "Stop after the preprocessing stage. Outputs to stdout." },
+            { "name": "-S", "type": "Control Flag", "description": "Stop after compilation. Outputs Assembly code." },
+            { "name": "-c", "type": "Control Flag", "description": "Compile and assemble, but do not link. Outputs an Object (.o) file." },
+            { "name": "-Wall -Wextra -Werror", "type": "Warning Flags", "description": "Enables all warnings and treats them as fatal compilation errors." }
+          ],
+          "returns": { "type": "File Output", "description": "Produces the requested file artifact." },
+          "complexity": "N/A",
+          "exceptions": "Returns exit code 0 on success, non-zero on failure."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t3-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day1-t3-txt-mechanics",
+          "content": "<p>Compiler flags alter the physical generation of the AST and the resulting binary. For example, optimization flags (<code>-O3</code>) instruct the AST to unroll loops and map variables strictly to registers instead of RAM. Warning flags (<code>-Wall</code>) activate internal heuristics that scan the AST for dangerous patterns (like uninitialized variables). Linker flags (<code>-l</code>, <code>-L</code>) are passed completely through the compiler down to the <code>ld</code> tool at the very end of the pipeline.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t3-sec-cli",
+          "title": "System Interaction"
+        },
+        {
+          "type": "cli_session",
+          "block_id": "day1-t3-cli-execution",
+          "lines": [
+            { "type": "command", "prompt": "root@container:/#", "content": "gcc -E main.c > main.i" },
+            { "type": "output", "content": "# Pipeline halted. main.i contains the fully expanded source code." },
+            { "type": "command", "prompt": "root@container:/#", "content": "gcc -S main.i" },
+            { "type": "output", "content": "# Pipeline halted. main.s contains the architecture-specific Assembly." },
+            { "type": "command", "prompt": "root@container:/#", "content": "gcc -c main.s" },
+            { "type": "output", "content": "# Pipeline halted. main.o contains the relocatable machine code." },
+            { "type": "command", "prompt": "root@container:/#", "content": "gcc main.o -o my_app -lm" },
+            { "type": "output", "content": "# Final linking stage. The executable my_app is created (linked with math library)." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t3-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day1-t3-cb-buggy",
+          "language": "c",
+          "header": "Code with Undefined Behavior",
+          "code": "#include <stdio.h>\n\nint main() {\n    int uninitialized_var;\n    // Naked GCC compiles this without complaint, leading to runtime chaos.\n    // gcc -Wall -Werror catches it instantly.\n    printf(\"%d\\n\", uninitialized_var);\n    return 0;\n}"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day1-t3-cb-readelf",
+          "language": "bash",
+          "header": "Inspecting Artifacts (readelf)",
+          "code": "# Use binary utilities to prove the -g flag injected debug symbols\nroot@container:/# gcc -g main.c -o main_debug\nroot@container:/# readelf --debug-dump=decodedline main_debug | grep main.c\n# Output maps memory addresses back to physical lines in main.c"
+        },
+        {
+          "type": "callout",
+          "block_id": "day1-t3-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Strict Compilation:</strong> Never allow code to be pushed to production without compiling cleanly under <code>-Wall -Wextra -Werror -Wpedantic</code>. Ignoring warnings in C is an invitation to Undefined Behavior.</li><li><strong>Save Temporaries:</strong> When debugging deep macro failures, use the <code>-save-temps</code> flag. It runs the full pipeline but saves the <code>.i</code>, <code>.s</code>, and <code>.o</code> files locally.</li><li><strong>Environment Separation:</strong> Always use <code>-O0 -g</code> for local development to preserve variable names and stack traces. Use <code>-O3 -DNDEBUG</code> for production releases.</li><li><strong>Standard Pinning:</strong> Explicitly declare the C standard using <code>-std=c23</code> or <code>-std=c11</code>. Do not rely on the compiler's default version.</li><li><strong>Architecture Targeting:</strong> For extreme performance on a known server, use <code>-march=native</code> to unlock CPU-specific SIMD vectorization.</li></ul>"
+        },
+        {
+          "type": "callout",
+          "block_id": "day1-t3-callout-antipatterns",
+          "variant": "danger",
+          "color": "var(--danger-border)",
+          "title": "Fatal Anti-Patterns",
+          "content": "<ul><li><strong>Naked GCC Calls:</strong> Running just <code>gcc app.c</code> in production builds. It hides critical warnings and applies zero optimizations.</li><li><strong>Monolithic Compilation:</strong> Compiling multiple files directly to a binary (e.g., <code>gcc f1.c f2.c -o app</code>). If only <code>f1.c</code> changes, both are recompiled. Use <code>-c</code> to cache objects.</li><li><strong>Debug Symbols in Prod:</strong> Deploying binaries compiled with <code>-g</code> to production. It drastically inflates binary size and makes reverse engineering trivially easy.</li><li><strong>Premature Optimization:</strong> Using <code>-Ofast</code> blindly. It breaks IEEE strict floating-point compliance, causing math bugs.</li><li><strong>Ignoring Library Ordering:</strong> Linker flags are order-dependent. <code>gcc -lm main.c</code> will fail, while <code>gcc main.c -lm</code> will succeed.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t3-sec-challenges",
+          "title": "Industrial Challenges"
+        },
+        {
+          "type": "text",
+          "block_id": "day1-t3-txt-challenges",
+          "content": "<ul><li><strong>Cross-Compilation Sysroots:</strong> When compiling for ARM on an x86 machine, you must use <code>--sysroot</code> to point GCC to the ARM versions of system headers, otherwise it mixes x86 headers into the ARM binary.</li><li><strong>Shared Library Hell:</strong> Understanding the difference between compile-time paths (<code>-L</code>) and runtime linker paths (<code>-Wl,-rpath</code>) is crucial to prevent `lib.so not found` errors in production.</li><li><strong>Sanitizer Overhead:</strong> Enabling AddressSanitizer (<code>-fsanitize=address</code>) slows down execution by 2x and balloons memory. It cannot be left on in performance-critical production paths.</li><li><strong>Reproducible Builds:</strong> GCC embeds timestamps and absolute file paths (like <code>/home/user/workspace/main.c</code>) into debug symbols, meaning two identical builds on different machines produce different checksums.</li><li><strong>Parsing Linker Maps:</strong> When embedded microcontrollers run out of Flash memory, engineers must pass <code>-Wl,-Map=output.map</code> to dissect exactly which function is consuming the most bytes.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t3-sec-silicon",
+          "title": "The Silicon Bridge"
+        },
+        {
+          "type": "text",
+          "block_id": "day1-t3-txt-silicon",
+          "content": "<p>Compiler flags physically alter how memory is accessed. Compiling a loop with <code>-O0</code> maps loop counters to physical RAM (Stack memory), generating a slow RAM Read/Write instruction on every iteration. Compiling the exact same code with <code>-O3</code> instructs the compiler to map the counter directly to an internal CPU Register (e.g., <code>eax</code>), eliminating the RAM bottleneck and making the loop execute hundreds of times faster.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day1-t3-cb-assembly-diff",
+          "language": "nasm",
+          "header": "Assembly Verification: -O0 vs -O3",
+          "code": "; Code: for(int i=0; i<100; i++) {}\n\n; Under -O0 (Unoptimized):\nmov DWORD PTR [rbp-4], 0     ; Write 0 to RAM (Stack)\njmp .L2\n.L3:\nadd DWORD PTR [rbp-4], 1     ; RAM Read, Add, RAM Write (Extremely slow)\n.L2:\ncmp DWORD PTR [rbp-4], 99\njle .L3\n\n; Under -O3 (Optimized):\n; The compiler realizes the loop does nothing and deletes it entirely."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t3-sec-qa",
+          "title": "Mastery Q&A"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day1-t3-qa-mastery",
+          "items": [
+            { "question": "What is the difference between -I, -L, and -l?", "answer": "`-I /path` tells the preprocessor where to find `.h` header files. `-L /path` tells the linker where to find library files. `-l math` tells the linker to link specifically against `libmath.so`." },
+            { "question": "Why does -Wall not actually enable *all* warnings?", "answer": "Historical naming. `-Wall` enables standard warnings that are generally agreed to be bugs. `-Wextra` adds more pedantic rules. To truly enable every esoteric warning, you'd need `-Weverything` (in Clang)." },
+            { "question": "What exactly does the -g flag do?", "answer": "It instructs the compiler to generate DWARF debugging information and embed it in the binary. This maps the raw assembly instructions back to specific line numbers and variable names in your original `.c` code, allowing GDB to set breakpoints." },
+            { "question": "What is -fPIC and when is it required?", "answer": "Position Independent Code. It generates machine code that executes correctly regardless of where it is loaded in memory. It is absolutely mandatory when compiling Object files that will be linked into a Shared Dynamic Library (`.so`)." },
+            { "question": "How do you remove debug symbols before releasing to production?", "answer": "Instead of recompiling without `-g`, it is standard practice to compile with `-g`, keep the binary internally for crash analysis, and use the `strip` command-line tool to rip the debug symbols out of the copy sent to customers." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day1-t3-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day1-t3-quiz-mastery",
+          "questions": [
+            {
+              "question": "Which command successfully compiles `main.c` into an object file without invoking the linker?",
+              "options": [
+                { "id": "t3-q1-a", "text": "gcc -S main.c", "is_correct": false, "explanation": "-S stops at the Assembly stage, generating a .s file, not an object file." },
+                { "id": "t3-q1-b", "text": "gcc -c main.c", "is_correct": true, "explanation": "The -c flag halts the pipeline after the assembler completes, outputting a relocatable main.o object file." },
+                { "id": "t3-q1-c", "text": "gcc -E main.c", "is_correct": false, "explanation": "-E stops at the Preprocessor stage." },
+                { "id": "t3-q1-d", "text": "gcc main.c -o main.o", "is_correct": false, "explanation": "This runs the full pipeline (including the linker) and just names the final executable 'main.o', which is highly misleading." }
+              ]
+            },
+            {
+              "question": "If you run `gcc main.c -lm -O3`, what does the `-lm` flag do?",
+              "options": [
+                { "id": "t3-q2-a", "text": "Increases memory allocation for the compiler.", "is_correct": false, "explanation": "Flags starting with -l indicate linking a library." },
+                { "id": "t3-q2-b", "text": "Instructs the linker to link against libm.so (the standard math library).", "is_correct": true, "explanation": "The linker expands `-lX` to search for a file named `libX.so` or `libX.a`." },
+                { "id": "t3-q2-c", "text": "Enables Linker memory optimizations.", "is_correct": false, "explanation": "LTO is enabled with -flto." },
+                { "id": "t3-q2-d", "text": "Tells the compiler to look in the /lib/math directory for headers.", "is_correct": false, "explanation": "Header inclusion directories are specified with -I." }
+              ]
+            },
+            {
+              "question": "Why is compiling with `-O3` a bad idea when you are actively stepping through code with GDB?",
+              "options": [
+                { "id": "t3-q3-a", "text": "It removes the DWARF debug symbols from the binary.", "is_correct": false, "explanation": "The -g flag controls symbols, independent of the -O flags." },
+                { "id": "t3-q3-b", "text": "It drastically reorders execution, inlines functions, and maps variables to registers, causing the debugger to jump wildly around source lines and show 'optimized out' for variables.", "is_correct": true, "explanation": "Optimizations destroy the 1-to-1 mapping between C source lines and execution flow." },
+                { "id": "t3-q3-c", "text": "It prevents the program from throwing Segmentation Faults.", "is_correct": false, "explanation": "Optimizations do not prevent segfaults." },
+                { "id": "t3-q3-d", "text": "GDB explicitly refuses to attach to -O3 binaries.", "is_correct": false, "explanation": "GDB will attach, it will just be incredibly confusing to step through." }
+              ]
+            },
+            {
+              "question": "You want to debug a complex macro expansion. Which flag allows you to run the normal build process but leaves the `.i` preprocessor file in your directory?",
+              "options": [
+                { "id": "t3-q4-a", "text": "-keep-macros", "is_correct": false, "explanation": "This flag does not exist." },
+                { "id": "t3-q4-b", "text": "-E", "is_correct": false, "explanation": "While -E outputs the preprocessed code, it HALTS the pipeline. It doesn't build the final binary." },
+                { "id": "t3-q4-c", "text": "-save-temps", "is_correct": true, "explanation": "This flag instructs GCC to run the full pipeline to completion, but saves all intermediate files (.i, .s, .o) in the current directory." },
+                { "id": "t3-q4-d", "text": "-Wall", "is_correct": false, "explanation": "This just enables warnings." }
+              ]
+            },
+            {
+              "question": "Why must `-Werror` be combined with `-Wall` in production CI/CD pipelines?",
+              "options": [
+                { "id": "t3-q5-a", "text": "Because without -Wall, -Werror does nothing.", "is_correct": false, "explanation": "-Werror works on any warning generated, even default ones." },
+                { "id": "t3-q5-b", "text": "Because -Wall enables detection of dangerous heuristics (like uninitialized variables), and -Werror converts them into hard compilation failures, preventing bad code from merging.", "is_correct": true, "explanation": "Warnings in C are often signs of Undefined Behavior. Forcing them to fail the build maintains code integrity." },
+                { "id": "t3-q5-c", "text": "It speeds up the compilation process by failing early.", "is_correct": false, "explanation": "Speed is not the primary purpose of these flags." },
+                { "id": "t3-q5-d", "text": "It automatically fixes the warnings by injecting safe defaults.", "is_correct": false, "explanation": "Compilers do not auto-fix code logic." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

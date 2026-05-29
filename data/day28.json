@@ -1,0 +1,212 @@
+{
+  "day": 28,
+  "module": "7: POSIX Systems & Process Control",
+  "topics": [
+    {
+      "header_hub": {
+        "title": "The Double-Fork Architecture",
+        "category": "Architecture",
+        "complexity": "Advanced",
+        "standard": "POSIX",
+        "read_time": 25,
+        "prerequisites": ["day-25-topic-1", "day-26-topic-3"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day28-t1-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day28-t1-txt-strategic-problem",
+          "content": "<p>When you run a C program in a Linux terminal, it is inextricably tethered to that terminal session. If the user closes the SSH window or presses <code>Ctrl+C</code>, the OS Kernel broadcasts a <code>SIGHUP</code> (Signal Hang Up) or <code>SIGINT</code> to the entire process group, instantly assassinating your program. But what if you are writing a web server (like Nginx) or a database (like PostgreSQL) that must run permanently in the background, 24/7/365, completely immune to user logouts? We must severe the physical and logical ties between our process and the terminal. We achieve this by mutating our process into a <strong>Daemon</strong> using the precise, mathematically rigorous <strong>Double-Fork Architecture</strong>.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day28-t1-sec-mechanics",
+          "title": "Internal Mechanics: Why Fork Twice?"
+        },
+        {
+          "type": "text",
+          "block_id": "day28-t1-txt-mechanics",
+          "content": "<p>Creating a true POSIX daemon requires executing <code>fork()</code> twice. <br><br><strong>The First Fork:</strong> We fork, and the Parent process instantly calls <code>exit(0)</code>. This achieves two things: it returns control to the terminal (so the user gets their shell prompt back), and it guarantees the Child is <em>Orphaned</em>. The OS Kernel re-parents the Orphan to PID 1 (init/systemd). <br><br><strong>The Second Fork:</strong> Even after the first fork, the process is still technically capable of re-acquiring a controlling terminal if it opens a terminal device file. We fork a <em>second</em> time and kill the first child. The resulting Grandchild process is guaranteed to not be a \"Session Leader\", physically revoking its Kernel privileges to ever attach to a TTY again. The process is now a ghost.</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day28-t1-svg-mechanics",
+          "caption": "A flowchart detailing the precise POSIX steps required to perfectly orphan a process into a background Daemon.",
+          "alt_text": "Flowchart showing Parent forking Child 1 (Parent exits), Child 1 calling setsid(), Child 1 forking Child 2 (Child 1 exits), and Child 2 becoming the Daemon.",
+          "svg_code": "<svg viewBox='0 0 600 350' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='350' fill='var(--bg-card)'/><g transform='translate(200, 20)'><rect x='0' y='0' width='200' height='40' fill='var(--bg-hover)' stroke='var(--border-light)' stroke-width='2' rx='4'/><text x='100' y='25' fill='var(--text-primary)' font-family='monospace' font-weight='bold' text-anchor='middle'>1. Initial Process</text></g><path d='M 300 60 L 300 90' stroke='var(--accent)' stroke-width='3' marker-end='url(#arrow-acc)'/><g transform='translate(200, 90)'><rect x='0' y='0' width='200' height='40' fill='rgba(14, 165, 233, 0.1)' stroke='var(--accent)' stroke-width='2' rx='4'/><text x='100' y='25' fill='var(--accent)' font-family='monospace' font-weight='bold' text-anchor='middle'>2. fork() #1</text></g><path d='M 200 110 L 120 110 L 120 130' stroke='var(--danger-border)' stroke-width='2' marker-end='url(#arrow-danger)' stroke-dasharray='4,4'/><text x='100' y='100' fill='var(--danger-border)' font-family='monospace' font-size='10'>Parent exit()</text><path d='M 300 130 L 300 160' stroke='var(--success-border)' stroke-width='3' marker-end='url(#arrow-succ)'/><g transform='translate(200, 160)'><rect x='0' y='0' width='200' height='40' fill='rgba(16, 185, 129, 0.1)' stroke='var(--success-border)' stroke-width='2' rx='4'/><text x='100' y='25' fill='var(--success-border)' font-family='monospace' font-weight='bold' text-anchor='middle'>3. setsid()</text></g><path d='M 300 200 L 300 230' stroke='var(--accent)' stroke-width='3' marker-end='url(#arrow-acc)'/><g transform='translate(200, 230)'><rect x='0' y='0' width='200' height='40' fill='rgba(14, 165, 233, 0.1)' stroke='var(--accent)' stroke-width='2' rx='4'/><text x='100' y='25' fill='var(--accent)' font-family='monospace' font-weight='bold' text-anchor='middle'>4. fork() #2</text></g><path d='M 400 250 L 480 250 L 480 270' stroke='var(--danger-border)' stroke-width='2' marker-end='url(#arrow-danger)' stroke-dasharray='4,4'/><text x='490' y='240' fill='var(--danger-border)' font-family='monospace' font-size='10' text-anchor='middle'>Child 1 exit()</text><path d='M 300 270 L 300 300' stroke='var(--success-border)' stroke-width='3' marker-end='url(#arrow-succ)'/><g transform='translate(200, 300)'><rect x='0' y='0' width='200' height='40' fill='rgba(16, 185, 129, 0.2)' stroke='var(--success-border)' stroke-width='2' rx='4'/><text x='100' y='25' fill='var(--success-border)' font-family='monospace' font-weight='bold' text-anchor='middle'>5. Grandchild (Daemon)</text></g><defs><marker id='arrow-acc' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--accent)'/></marker><marker id='arrow-danger' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--danger-border)'/></marker><marker id='arrow-succ' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--success-border)'/></marker></defs></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day28-t1-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day28-t1-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "What is the primary architectural purpose of the SECOND `fork()` call during POSIX Daemonization?",
+              "options": [
+                { "id": "t1-q1-a", "text": "To orphan the process so it is adopted by PID 1.", "is_correct": false, "explanation": "The FIRST fork handles the orphaning to PID 1." },
+                { "id": "t1-q1-b", "text": "To guarantee the final Daemon process is NOT a 'Session Leader'. A process that is not a Session Leader is mathematically forbidden by the OS Kernel from ever acquiring a controlling terminal, fully immunizing it against TTY interrupts.", "is_correct": true, "explanation": "This severs the final theoretical link between the process and any interactive terminal hardware." },
+                { "id": "t1-q1-c", "text": "To create a worker thread for the Daemon.", "is_correct": false, "explanation": "fork() creates processes, not threads." },
+                { "id": "t1-q1-d", "text": "To clear the inherited File Descriptors.", "is_correct": false, "explanation": "File descriptors are closed manually in a loop, not cleared via fork()." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Creating a New Session ID (setsid)",
+        "category": "API Mechanics",
+        "complexity": "Intermediate",
+        "standard": "POSIX",
+        "read_time": 25,
+        "prerequisites": ["day-28-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day28-t2-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day28-t2-txt-strategic-problem",
+          "content": "<p>Even after the First Fork (where the Parent exits and the Child is adopted by PID 1), the Child process is still highly vulnerable. By default, <code>fork()</code> causes the Child to inherit the <strong>Process Group ID (PGID)</strong> and the <strong>Session ID (SID)</strong> of the Parent. The Session ID is fundamentally tied to the specific terminal window that launched the program. If the user eventually closes that terminal window, the OS Kernel identifies every process sharing that Session ID and fires a <code>SIGHUP</code> signal at them. To survive the terminal closure, the Child must completely secede from the Parent's session and establish its own sovereign session state using <code>setsid()</code>.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day28-t2-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day28-t2-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;unistd.h&gt;</span>\n\n<span class=\"syntax-ty\">pid_t</span> sid = setsid();",
+          "description": "Creates a new session if the calling process is not already a process group leader.",
+          "parameters": [
+            { "name": "None", "type": "void", "description": "Takes no arguments." }
+          ],
+          "returns": { "type": "pid_t", "description": "Returns the new Session ID on success, or -1 on error." },
+          "complexity": "O(1) Kernel state mutation. Updates the Process Control Block.",
+          "exceptions": "If the calling process is already a Process Group Leader (e.g., the Parent process), setsid() will instantly fail with EPERM. It MUST be called by the orphaned Child."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day28-t2-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day28-t2-txt-mechanics",
+          "content": "<p>When the orphaned Child executes <code>setsid()</code>, three massive state changes occur in the Kernel instantly. First, the Child becomes the <strong>Session Leader</strong> of a brand new session. Second, the Child becomes the <strong>Process Group Leader</strong> of a new process group. Third, and most importantly, the Child is completely stripped of its controlling terminal. It has no TTY. If a process has no TTY, it cannot receive keyboard signals like <code>SIGINT</code> (Ctrl+C). It is now drifting in the background, communicating with the outside world purely through syslog, files, or network sockets.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day28-t2-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day28-t2-txt-debug-intro",
+          "content": "<p>Analyze the following broken snippet. Find the vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day28-t2-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The Premature Session",
+          "code": "#include &lt;unistd.h&gt;\n#include &lt;stdlib.h&gt;\n#include &lt;stdio.h&gt;\n\nvoid daemonize_server() {\n    // Engineer attempts to detach from the terminal BEFORE forking.\n    if (setsid() == -1) {\n        perror(\"Failed to create new session\");\n    }\n    \n    pid_t pid = fork();\n    if (pid > 0) {\n        exit(0); // Parent exits\n    }\n    \n    // Child continues running as daemon...\n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day28-t2-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "The engineer called `setsid()` in the Parent process. When you run a command in the shell (like `./my_server`), the shell makes that initial process the Process Group Leader of the pipeline. The POSIX standard explicitly forbids a Process Group Leader from calling `setsid()`. The call will fail 100% of the time with an `EPERM` error. The program then forks, but because `setsid()` failed, the resulting Child is *still* attached to the original terminal session. When the terminal closes, the Daemon dies. Fix: You MUST execute `fork()` first, have the Parent exit, and execute `setsid()` exclusively inside the Child." }
+          ]
+        },
+        {
+          "type": "callout",
+          "block_id": "day28-t2-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>The daemon() Function is Dead:</strong> Older C tutorials will tell you to simply call the glibc <code>daemon(0, 0)</code> function. This is heavily deprecated and banned in elite architectures. It hides critical failure points, behaves poorly under modern <code>systemd</code> supervision, and obscures the File Descriptor mappings. Systems Engineers must explicitly write the Double-Fork architecture manually.</li></ul>"
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Closing Standard File Descriptors and /dev/null",
+        "category": "Memory & I/O",
+        "complexity": "Expert",
+        "standard": "POSIX",
+        "read_time": 30,
+        "prerequisites": ["day-28-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day28-t3-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day28-t3-txt-strategic-problem",
+          "content": "<p>A Daemon process has no terminal. However, when it forked from the Parent, it inherited a direct copy of the Parent's File Descriptor table. This means <code>stdin</code> (FD 0), <code>stdout</code> (FD 1), and <code>stderr</code> (FD 2) are still physically piped to the terminal window that launched it. If the daemon tries to execute <code>printf(\"Error\");</code> and the terminal window has been closed by the user, the <code>write()</code> syscall behind <code>printf</code> will trigger a fatal <code>SIGPIPE</code> or <code>EIO</code> error, potentially crashing the Daemon. We must aggressively close all inherited File Descriptors, and safely map 0, 1, and 2 into the OS's black hole: <code>/dev/null</code>.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day28-t3-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day28-t3-txt-mechanics",
+          "content": "<p>Why not just close 0, 1, and 2 and leave them empty? Because the POSIX <code>open()</code> syscall always allocates the <em>lowest available integer</em>. If FD 0 is empty, and the Daemon opens a Database connection, the OS assigns FD 0 to the Database. Later, a deeply nested third-party library uses <code>printf()</code> (which hardcodes writes to FD 1, or falls back to standard assumptions). This can result in log strings being violently written directly into the binary stream of your Database connection, corrupting your data. We must explicitly open <code>/dev/null</code> with Read/Write access. The OS assigns it FD 0. We then use <code>dup2(0, 1)</code> and <code>dup2(0, 2)</code> to clone it. Now, any accidental <code>printf</code> calls vanish into the black hole harmlessly.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day28-t3-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day28-t3-cb-daemon",
+          "language": "c",
+          "header": "The Perfect POSIX Daemon (Assessment Check)",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;stdlib.h&gt;\n#include &lt;unistd.h&gt;\n#include &lt;sys/types.h&gt;\n#include &lt;sys/stat.h&gt;\n#include &lt;fcntl.h&gt;\n#include &lt;syslog.h&gt;\n\nvoid skeleton_daemon() {\n    pid_t pid;\n\n    // 1. Fork off the parent process\n    pid = fork();\n    if (pid < 0) exit(EXIT_FAILURE);\n    if (pid > 0) exit(EXIT_SUCCESS); // Parent exits instantly\n\n    // 2. The Child becomes Session Leader to detach from terminal\n    if (setsid() < 0) exit(EXIT_FAILURE);\n\n    // 3. Catch, ignore and handle signals (Ignore SIGHUP)\n    // (Optional, but recommended for robust daemons)\n\n    // 4. Fork again to guarantee we are not a Session Leader\n    pid = fork();\n    if (pid < 0) exit(EXIT_FAILURE);\n    if (pid > 0) exit(EXIT_SUCCESS); // Child 1 exits instantly\n\n    // 5. Unmask file mode (Clear inherited umask)\n    umask(0);\n\n    // 6. Change working directory to root (Prevent locking up mounted USB drives)\n    if ((chdir(\"/\")) < 0) exit(EXIT_FAILURE);\n\n    // 7. Close ALL open file descriptors inherited from Parent\n    int max_fd = sysconf(_SC_OPEN_MAX);\n    for (int i = 0; i < max_fd; i++) {\n        close(i);\n    }\n\n    // 8. Re-open Standard I/O to /dev/null\n    // Because 0,1,2 were just closed, the first open() is guaranteed to be FD 0.\n    int fd0 = open(\"/dev/null\", O_RDWR);\n    int fd1 = dup(0); // Duplicates FD 0 into FD 1\n    int fd2 = dup(0); // Duplicates FD 0 into FD 2\n}\n\nint main() {\n    skeleton_daemon();\n    \n    // We are now a ghost. We have no terminal.\n    // We must communicate via Syslog.\n    openlog(\"my_custom_daemon\", LOG_PID, LOG_DAEMON);\n    syslog(LOG_NOTICE, \"Daemon successfully booted.\");\n\n    // The infinite background heartbeat loop\n    while (1) {\n        syslog(LOG_NOTICE, \"Heartbeat: System is stable.\");\n        sleep(10);\n    }\n\n    closelog();\n    return EXIT_SUCCESS;\n}"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day28-t3-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day28-t3-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "During POSIX Daemonization, why is it critical to explicitly open `/dev/null` and map it to File Descriptors 0, 1, and 2, rather than simply leaving those descriptors closed?",
+              "options": [
+                { "id": "t3-q1-a", "text": "Because the OS Kernel requires at least 3 file descriptors open to keep the process alive.", "is_correct": false, "explanation": "A process can run with zero open FDs, though it's dangerous." },
+                { "id": "t3-q1-b", "text": "Because the `open()` syscall always assigns the lowest available integer. If FDs 0, 1, and 2 are empty, opening a critical database socket might assign it FD 1. If an embedded library accidentally calls `printf()`, it will write raw log strings directly into the database connection, corrupting the payload.", "is_correct": true, "explanation": "Mapping them to the `/dev/null` black hole safely absorbs any rogue standard I/O calls." },
+                { "id": "t3-q1-c", "text": "Because `syslog()` requires FD 1 to be open.", "is_correct": false, "explanation": "`syslog` uses a UNIX domain socket (like `/dev/log`), not `stdout`." },
+                { "id": "t3-q1-d", "text": "It enables the Daemon to be restarted by systemd.", "is_correct": false, "explanation": "systemd manages states via PID tracking and unit files, not by relying on `/dev/null`." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,680 @@
+{
+  "day": 9,
+  "module": "3: Strings, Preprocessor, and TDD",
+  "topics": [
+    {
+      "header_hub": {
+        "title": "C-Strings Under the Hood: Mutability and Memory",
+        "category": "Core C",
+        "complexity": "Intermediate",
+        "standard": "C89/C99",
+        "read_time": 25,
+        "prerequisites": ["day-7-topic-1", "day-5-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day9-t1-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day9-t1-txt-strategic-problem",
+          "content": "<p>In virtually all high-level languages, a 'String' is a complex, first-class object that permanently tracks its own length and securely manages its own memory. In C, a string does not technically exist. It is an illusion created by a raw, contiguous array of 1-byte <code>char</code> values, terminated by a special invisible <code>\\0</code> (Null) character. Because C strings have no length metadata, every single string operation requires the CPU to manually scan memory byte-by-byte to find the end. Failing to understand where these bytes physically live (Read-Only vs Stack memory) results in immediate Segmentation Faults.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t1-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day9-t1-api-main",
+          "signature": "<span class=\"syntax-kw\">char</span> *str = <span class=\"syntax-str\">\"Read Only\"</span>;\n<span class=\"syntax-kw\">char</span> arr[] = <span class=\"syntax-str\">\"Mutable\"</span>;",
+          "description": "The two fundamental mechanisms for declaring C-Strings, dictating drastically different memory architectures.",
+          "parameters": [
+            { "name": "char *str", "type": "Pointer to Literal", "description": "Pointer resides on the Stack, but points to read-only string memory in the .rodata segment." },
+            { "name": "char arr[]", "type": "Local Array", "description": "Copies the characters from .rodata into a mutable, read/write array located physically on the Stack." },
+            { "name": "\\0 (Null Terminator)", "type": "Sentinel Byte", "description": "The ASCII character 0x00. Mandated by the C standard to mark the logical end of a string." }
+          ],
+          "returns": { "type": "N/A", "description": "N/A" },
+          "complexity": "O(N) to calculate length, where N is the distance to the nearest \\0.",
+          "exceptions": "Writing to a literal pointer invokes a hardware SIGSEGV."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t1-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day9-t1-txt-mechanics",
+          "content": "<p>When the C compiler encounters a string literal like <code>\"ERROR\"</code> in your code, it bakes those 6 bytes ('E','R','R','O','R','\\0') directly into the binary's <code>.rodata</code> (Read-Only Data) segment. If you assign this to a <code>char *</code>, the pointer simply holds the address of that baked-in memory. If you assign it to a <code>char arr[]</code>, the compiler secretly injects assembly instructions to execute a rapid memory copy, moving those 6 bytes from <code>.rodata</code> onto your local read/write Stack frame at runtime.</p>"
+        },
+        {
+          "type": "mermaid_diagram",
+          "block_id": "day9-t1-mermaid-strings",
+          "syntax": "graph TD\n    A[\"Code: char *s = 'Hi';\"] --> B[\"Stack: Pointer 's'\"]\n    B -.->|Points to| C[\".rodata Segment (Read-Only): [H] [i] [\\0]\"]\n    \n    D[\"Code: char a[] = 'Hi';\"] --> E[\"Compiler generates memcpy\"]\n    E --> F[\"Stack: Array 'a' (Read/Write): [H] [i] [\\0]\"]\n    classDef file fill:#18181b,stroke:#3b82f6,stroke-width:2px,color:#f4f4f5;\n    classDef ro fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#f4f4f5;\n    class A,B,D,E,F file;\n    class C ro;"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t1-sec-trench-story",
+          "title": "Production Trench Story"
+        },
+        {
+          "type": "callout",
+          "block_id": "day9-t1-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage: The Missing Null Sentinel",
+          "content": "<p>A massively multiplayer online game server used a C daemon to route chat messages. An engineer dynamically built a chat buffer: <code>char *msg = malloc(16);</code> and used <code>memcpy(msg, incoming_data, 16);</code> to populate it. They forgot to manually append the <code>\\0</code> byte. When the logging system called <code>printf(\"%s\", msg)</code>, <code>printf</code> began reading the string, searching for the <code>\\0</code>. Since it didn't exist in the 16 bytes, <code>printf</code> kept reading contiguous heap memory, dumping player passwords, server private keys, and administrative session tokens straight into the public chat log until it luckily encountered a random <code>0x00</code> byte 4,000 bytes later. The server had to be wiped and rebuilt.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t1-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day9-t1-cb-evolutionary",
+          "language": "c",
+          "header": "String Construction and Bounds Checking",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;string.h&gt;\n\nvoid explore_string_types() {\n    // 1. Pointer to Read-Only String\n    const char *readonly_str = \"Immutable\"; \n    // readonly_str[0] = 'X'; // Compiler error thanks to 'const'\n    \n    // 2. Mutable Stack Array\n    // Automatically sized to 8 bytes (7 chars + 1 null terminator)\n    char mutable_arr[] = \"Mutable\";\n    mutable_arr[0] = 'X'; // Perfectly legal. Operates on stack memory.\n    \n    // 3. String Length vs Memory Size\n    // strlen() counts N bytes until it hits \\0. (Returns 7)\n    // sizeof() measures the entire allocated block. (Returns 8)\n    printf(\"Length: %zu, Size: %zu\\n\", strlen(mutable_arr), sizeof(mutable_arr));\n}"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t1-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day9-t1-txt-debug-intro",
+          "content": "<p>Analyze the following broken snippet. Find the vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day9-t1-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The Constant Truncation",
+          "code": "#include &lt;stdio.h&gt;\n\nint main() {\n    // Engineer wants a fixed-size buffer to hold exactly \"HELLO\"\n    char greeting[5] = \"HELLO\";\n    \n    // Print the greeting\n    printf(\"Message: %s\\n\", greeting);\n    return 0;\n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day9-t1-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "The word `HELLO` is 5 characters long. The array is explicitly sized to `[5]`. The C compiler honors the explicit size, copies the 5 characters into the array, and intentionally silently discards the hidden `\\0` null terminator because there is no room for it. When `printf` executes `%s`, it requires a null terminator to stop printing. Because it doesn't exist, `printf` will read straight past the end of the `greeting` array into adjacent stack memory, printing garbage characters until it crashes or hits a 0. Fix: Use `char greeting[6] = \"HELLO\";` or better yet, let the compiler auto-size it: `char greeting[] = \"HELLO\";`." }
+          ]
+        },
+        {
+          "type": "callout",
+          "block_id": "day9-t1-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Const String Pointers:</strong> When declaring a pointer to a string literal, you MUST use <code>const char *</code>. Declaring <code>char *str = \"Hello\";</code> is deprecated and strips the compiler's ability to protect the read-only memory from accidental mutation.</li><li><strong>The N+1 Rule:</strong> Every time you dynamically allocate a string via <code>malloc</code>, you must allocate <code>strlen(source) + 1</code>. Forgetting the <code>+ 1</code> for the null terminator is a guaranteed memory corruption bug.</li><li><strong>Auto-Sizing Arrays:</strong> Never hardcode the size of a string array if it is immediately initialized. Use <code>char msg[] = \"Text\";</code>. The compiler is mathematically perfect at sizing it. Hardcoding <code>char msg[4] = \"Text\"</code> silently drops the <code>\\0</code>.</li><li><strong>Strlen is O(N):</strong> Do not use <code>strlen()</code> in the condition block of a <code>for</code> loop (e.g., <code>for(int i=0; i&lt;strlen(str); i++)</code>). This forces the CPU to recount the entire string from the beginning on every single loop iteration, turning an O(N) loop into a disastrous O(N^2) loop. Hoist it: <code>size_t len = strlen(str); for(...)</code>.</li><li><strong>Explicit Nulling:</strong> When pulling raw binary chunks from a network socket into a <code>char</code> buffer, you must manually inject the null terminator <code>buffer[bytes_read] = '\\0';</code> before passing it to any string processing functions.</li></ul>"
+        },
+        {
+          "type": "callout",
+          "block_id": "day9-t1-callout-antipatterns",
+          "variant": "danger",
+          "color": "var(--danger-border)",
+          "title": "Fatal Anti-Patterns",
+          "content": "<ul><li><strong>Single vs Double Quotes:</strong> Confusing <code>'A'</code> and <code>\"A\"</code>. Single quotes denote an integer (the ASCII value 65). Double quotes denote an 8-byte pointer to a read-only 2-byte array containing <code>'A'</code> and <code>'\\0'</code>. Assigning a double quote to a single <code>char</code> truncates a pointer into an integer.</li><li><strong>Unterminated Strncpy:</strong> Using standard <code>strncpy(dst, src, size)</code>. If the source string is longer than the size, <code>strncpy</code> intentionally DOES NOT append a null terminator to the destination, leaving an explosive time-bomb in your memory.</li><li><strong>sizeof() on Decayed Strings:</strong> Passing an array string into a function <code>void log(char str[])</code> and using <code>sizeof(str)</code> to get its length. Because arrays decay, it will always return 8 (the size of the pointer), not the string length.</li><li><strong>Empty Initializers for Strings:</strong> Declaring <code>char buf[1024];</code> without initializing it, then using <code>strcat(buf, \"add\")</code>. <code>strcat</code> searches for the first <code>\\0</code> in the garbage memory to start appending, corrupting the heap/stack.</li><li><strong>Returning String Literals without Const:</strong> A function that returns <code>char*</code> returning a literal <code>\"OK\"</code>. The caller assumes it receives a mutable heap string and tries to write to it, causing a crash. Return <code>const char*</code>.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t1-sec-challenges",
+          "title": "Industrial Challenges"
+        },
+        {
+          "type": "text",
+          "block_id": "day9-t1-txt-challenges",
+          "content": "<ul><li><strong>The Schlemiel the Painter's Algorithm:</strong> Repeatedly concatenating strings using standard C functions forces the CPU to constantly re-scan the entire combined string to find the end before adding the next piece. This makes large-scale string building exponentially slow. Advanced parsers use custom structs storing the string pointer and a manual <code>length</code> variable to achieve O(1) appends.</li><li><strong>Null-Byte Injection Attacks:</strong> Because C relies entirely on <code>\\0</code> to terminate strings, malicious actors inject <code>\\0</code> bytes into the middle of payloads (e.g., <code>\"admin_script.sh\\0.jpg\"</code>). The C backend stops reading at the null, executing the script, while higher-level file checkers see a harmless JPG extension.</li><li><strong>Unicode & UTF-8 Chaos:</strong> Standard C <code>char</code> assumes 1 byte equals 1 character (ASCII). In modern UTF-8, an emoji might consume 4 bytes. <code>strlen()</code> returns the number of physical bytes, NOT the number of visible characters, completely breaking formatting and substring algorithms.</li><li><strong>Information Disclosure:</strong> If a struct containing a string buffer (e.g., <code>char name[64]</code>) is initialized with a 5-byte name, the remaining 59 bytes contain stack garbage. Transmitting this raw struct over the network leaks that internal memory garbage to hackers.</li><li><strong>String Pooling Overhead:</strong> Compilers optimize binary size by \"pooling\" identical string literals. If you write <code>\"ERROR\"</code> in 50 different files, the linker merges them into a single memory address. While memory-efficient, relying on unique pointer addresses for identical strings will fail.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t1-sec-silicon",
+          "title": "The Silicon Bridge"
+        },
+        {
+          "type": "text",
+          "block_id": "day9-t1-txt-silicon",
+          "content": "<p>When the CPU iterates through a string searching for the <code>\\0</code> terminator, it does not do so inefficiently. Modern CPUs utilize <strong>SIMD (Single Instruction, Multiple Data)</strong> instructions. The glibc implementation of <code>strlen</code> does not read 1 byte at a time; it reads 16 or 32 contiguous bytes into massive vector registers (like AVX2) and executes a highly parallel bit-masking operation to check if any of those 32 bytes contain a zero simultaneously. This makes C string traversal blindingly fast at the hardware level.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day9-t1-cb-assembly",
+          "language": "nasm",
+          "header": "Assembly Verification (The repne scasb instruction)",
+          "code": "; Legacy x86 implementation of strlen (Modern uses AVX SIMD)\n; 'rdi' holds the string pointer. 'al' holds the target (0 for \\0)\nxor al, al       ; Set search target to 0\nmov rcx, -1      ; Set counter to max possible value\nrepne scasb      ; REPeat while Not Equal: Scan string for AL (0).\n                 ; This instruction natively loops inside the silicon!"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t1-sec-qa",
+          "title": "Mastery Q&A"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day9-t1-qa-mastery",
+          "items": [
+            { "question": "Why does `printf(\"%s\", str)` know when to stop printing?", "answer": "The `%s` format specifier explicitly commands the internal `printf` logic to iterate through the provided memory address byte-by-byte, sending characters to the standard output buffer until it encounters the physical byte `0x00`." },
+            { "question": "If I write `char str[10] = \"Hi\";`, what is in the remaining 7 bytes?", "answer": "The C standard guarantees that if an array is partially initialized, the remainder is entirely zero-filled. Thus, the array contains 'H', 'i', '\\0', followed by seven more '\\0' bytes." },
+            { "question": "Can I resize a C string after declaring it?", "answer": "If it is an array on the Stack (`char s[10]`), no. Stack sizes are rigid. If it is dynamically allocated on the Heap (`malloc`), you can use `realloc` to request the OS to find a larger contiguous block, move your string there, and free the old block." },
+            { "question": "What is the physical difference between `0`, `'0'`, and `'\\0'`?", "answer": "A literal `0` is a 4-byte integer. `\\0` is a 1-byte character representing the numeric value 0 (the Null Terminator). `'0'` is a 1-byte character representing the printable number zero, which physically equates to the ASCII integer 48." },
+            { "question": "How do you copy a string securely?", "answer": "You allocate exactly `strlen(src) + 1` bytes on the Heap or Stack, and use a secure copy function like `snprintf(dst, size, \"%s\", src)` or the BSD-standard `strlcpy(dst, src, size)` to guarantee null-termination without overflowing." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t1-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day9-t1-quiz-mastery",
+          "time_limit_seconds": 375,
+          "questions": [
+            {
+              "question": "What happens if you execute `char *msg = \"HELLO\"; msg[0] = 'M';`?",
+              "options": [
+                { "id": "t1-q1-a", "text": "The string seamlessly changes to \"MELLO\".", "is_correct": false, "explanation": "This only works if `msg` is declared as an array `char msg[]`." },
+                { "id": "t1-q1-b", "text": "A compiler syntax error is thrown.", "is_correct": false, "explanation": "It is valid syntax (though modern compilers issue warnings), but it violates memory permissions at runtime." },
+                { "id": "t1-q1-c", "text": "A hardware Segmentation Fault is triggered.", "is_correct": true, "explanation": "String literals are baked into the `.rodata` segment. The hardware MMU strictly prohibits write access to this segment, immediately killing the process." },
+                { "id": "t1-q1-d", "text": "The pointer address is changed.", "is_correct": false, "explanation": "The address remains the same, the write to the data fails." }
+              ]
+            },
+            {
+              "question": "Which of the following correctly calculates the length of a string in a generic wrapper function?",
+              "options": [
+                { "id": "t1-q2-a", "text": "void log(char str[]) { return sizeof(str); }", "is_correct": false, "explanation": "sizeof(str) inside a function returns 8 (pointer decay)." },
+                { "id": "t1-q2-b", "text": "void log(char *str) { return strlen(str); }", "is_correct": true, "explanation": "`strlen` accurately calculates the string length by scanning memory for the null terminator, regardless of pointer decay." },
+                { "id": "t1-q2-c", "text": "void log(char *str) { return sizeof(*str); }", "is_correct": false, "explanation": "This returns 1 (the size of a single char)." },
+                { "id": "t1-q2-d", "text": "void log(char str[100]) { return sizeof(str); }", "is_correct": false, "explanation": "The `[100]` signature is ignored by the compiler; it still decays to an 8-byte pointer." }
+              ]
+            },
+            {
+              "question": "Why is placing `strlen(str)` directly inside a `for` loop condition (`for (int i=0; i < strlen(str); i++)`) a catastrophic architectural failure?",
+              "options": [
+                { "id": "t1-q3-a", "text": "It modifies the original string.", "is_correct": false, "explanation": "strlen is read-only." },
+                { "id": "t1-q3-b", "text": "It requires floating-point math.", "is_correct": false, "explanation": "It calculates integer lengths." },
+                { "id": "t1-q3-c", "text": "It forces the CPU to re-scan the entire string from index 0 to find the null terminator on every single loop iteration, turning an O(N) loop into an O(N^2) chokepoint.", "is_correct": true, "explanation": "Because the compiler cannot guarantee the loop body hasn't mutated the string length, it must re-execute the full `strlen` O(N) scan every cycle. For a 100k string, this wastes billions of cycles." },
+                { "id": "t1-q3-d", "text": "It returns a signed integer, risking underflows.", "is_correct": false, "explanation": "strlen returns a `size_t` (unsigned)." }
+              ]
+            },
+            {
+              "question": "An engineer allocates `char buf[4] = \"ROOT\";`. What is the value of `buf[3]`?",
+              "options": [
+                { "id": "t1-q4-a", "text": "'T'", "is_correct": true, "explanation": "Because the array is strictly sized to 4, the characters 'R', 'O', 'O', 'T' fill the entire array. The C compiler silently drops the invisible `\\0` terminator to fit the literal." },
+                { "id": "t1-q4-b", "text": "'O'", "is_correct": false, "explanation": "Index 3 is the 4th element." },
+                { "id": "t1-q4-c", "text": "'\\0'", "is_correct": false, "explanation": "There is no room for the null terminator, so it is omitted." },
+                { "id": "t1-q4-d", "text": "Undefined Behavior", "is_correct": false, "explanation": "It is well-defined truncation, but highly dangerous if passed to `printf` later." }
+              ]
+            },
+            {
+              "question": "What is the primary danger of a 'Null-Byte Injection' attack?",
+              "options": [
+                { "id": "t1-q5-a", "text": "It triggers an immediate CPU cache flush.", "is_correct": false, "explanation": "It does not interact with cache hardware directly." },
+                { "id": "t1-q5-b", "text": "Hackers insert a `\\0` into a payload to trick C backend parsers into terminating string reads prematurely, hiding malicious executable commands or bypassing extension checks.", "is_correct": true, "explanation": "Because C relies universally on `\\0` for string termination, injecting it forces C to 'see' a shorter string than what is actually in the buffer, exploiting logic gaps." },
+                { "id": "t1-q5-c", "text": "It corrupts the stack canary.", "is_correct": false, "explanation": "Buffer overflows do this, not null bytes specifically." },
+                { "id": "t1-q5-d", "text": "It converts integers to void pointers.", "is_correct": false, "explanation": "It manipulates string logic, not types." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "String Manipulation (string.h)",
+        "category": "Core C",
+        "complexity": "Expert",
+        "standard": "C99 / POSIX",
+        "read_time": 30,
+        "prerequisites": ["day-9-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day9-t2-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day9-t2-txt-strategic-problem",
+          "content": "<p>C relies on the <code>&lt;string.h&gt;</code> standard library to perform basic string manipulations (copying, appending, and comparison). However, the original functions designed in the 1970s (<code>strcpy</code>, <code>strcat</code>, <code>sprintf</code>) operate under the naive assumption that the destination buffer is infinitely large. If a string is longer than the target memory block, these functions will relentlessly overwrite adjacent variables, Stack frames, and Return Addresses. Mastering C requires abandoning these archaic tools and understanding the nuanced, modern boundary-safe replacements that prevent application hijacking.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t2-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day9-t2-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;string.h&gt;</span>\n<span class=\"syntax-kw\">int</span> snprintf(<span class=\"syntax-kw\">char</span> *str, <span class=\"syntax-ty\">size_t</span> size, <span class=\"syntax-kw\">const char</span> *format, ...);",
+          "description": "The industry-standard, safe mechanism for string copying, formatting, and concatenation.",
+          "parameters": [
+            { "name": "str", "type": "char *", "description": "The destination memory buffer." },
+            { "name": "size", "type": "size_t", "description": "The absolute maximum capacity of the destination buffer (including the null terminator)." },
+            { "name": "format", "type": "const char *", "description": "The formatted string template (e.g., \"%s%d\")." }
+          ],
+          "returns": { "type": "int", "description": "The number of characters that WOULD have been written if the buffer were large enough (excluding null)." },
+          "complexity": "O(N) based on the length of the formatted inputs.",
+          "exceptions": "Safely truncates data if it exceeds 'size'. Always guarantees null-termination (if size > 0)."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t2-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day9-t2-txt-mechanics",
+          "content": "<p>Modern boundary-safe functions require the engineer to explicitly pass the maximum size of the destination buffer. <code>snprintf</code> tracks exactly how many bytes it has written. The moment it reaches <code>size - 1</code>, it abruptly halts processing, explicitly injects a <code>\\0</code> at the end of the buffer, and returns. This prevents the physical memory pointer from escaping the allocated boundary, thwarting all buffer overflow attempts.</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day9-t2-svg-mechanics",
+          "caption": "The fatal vulnerability of strcpy vs the boundary protection of snprintf.",
+          "alt_text": "Visual showing strcpy overflowing a 4-byte buffer to overwrite adjacent memory, while snprintf stops safely at the boundary.",
+          "svg_code": "<svg viewBox='0 0 600 200' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='200' fill='var(--bg-card)'/><g transform='translate(20, 20)'><rect x='0' y='0' width='260' height='160' fill='var(--bg-hover)' stroke='var(--border-light)' stroke-width='2' rx='8'/><text x='130' y='25' fill='var(--danger-border)' font-family='monospace' font-weight='bold' text-anchor='middle'>strcpy(buf, \"OVERFLOW\")</text><rect x='20' y='50' width='80' height='30' fill='rgba(239, 68, 68, 0.1)' stroke='var(--danger-border)'/><text x='60' y='70' fill='var(--danger-border)' font-family='monospace' text-anchor='middle'>buf[4]</text><rect x='100' y='50' width='140' height='30' fill='rgba(239, 68, 68, 0.1)' stroke='var(--danger-border)' stroke-dasharray='4,4'/><text x='170' y='70' fill='var(--danger-border)' font-family='monospace' font-size='10' text-anchor='middle'>Adjacent Memory</text><text x='130' y='110' fill='var(--text-primary)' font-family='monospace' font-size='16' letter-spacing='8' text-anchor='middle'>O V E R F L O W</text><text x='130' y='145' fill='var(--danger-border)' font-size='10' font-weight='bold' text-anchor='middle'>CORRUPTED</text></g><g transform='translate(320, 20)'><rect x='0' y='0' width='260' height='160' fill='var(--bg-hover)' stroke='var(--border-light)' stroke-width='2' rx='8'/><text x='130' y='25' fill='var(--success-border)' font-family='monospace' font-weight='bold' text-anchor='middle'>snprintf(buf, 4, \"OVER...\")</text><rect x='20' y='50' width='80' height='30' fill='rgba(16, 185, 129, 0.1)' stroke='var(--success-border)'/><text x='60' y='70' fill='var(--success-border)' font-family='monospace' text-anchor='middle'>buf[4]</text><rect x='100' y='50' width='140' height='30' fill='none' stroke='var(--border-light)'/><text x='170' y='70' fill='var(--text-secondary)' font-family='monospace' font-size='10' text-anchor='middle'>Adjacent Memory</text><text x='60' y='110' fill='var(--text-primary)' font-family='monospace' font-size='16' letter-spacing='5' text-anchor='middle'>O V E \\0</text><text x='170' y='110' fill='var(--text-secondary)' font-family='monospace' font-size='16' letter-spacing='5' text-anchor='middle'>- - - -</text><text x='130' y='145' fill='var(--success-border)' font-size='10' font-weight='bold' text-anchor='middle'>SAFE TRUNCATION</text></g></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t2-sec-trench-story",
+          "title": "Production Trench Story"
+        },
+        {
+          "type": "callout",
+          "block_id": "day9-t2-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage: The strncpy Time Bomb",
+          "content": "<p>A junior engineer attempted to fix a vulnerable <code>strcpy</code> call in an authentication module by replacing it with the \"safer\" <code>strncpy(dest, src, sizeof(dest))</code>. The buffer was 16 bytes. A hacker realized this and sent a username exactly 16 bytes long. <code>strncpy</code> has a fatal flaw: if the source string equals or exceeds the boundary size, it fills the buffer entirely and intentionally <em>fails to write a null terminator</em>. The password field sat adjacently in memory. When the server authenticated the user, it evaluated the unterminated username, leaking the password array immediately following it and allowing the hacker to bypass the hash check. <code>strncpy</code> is not boundary-safe string creation; it is a legacy fixed-width data manipulator.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t2-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day9-t2-cb-evolutionary",
+          "language": "c",
+          "header": "Safe String Concatenation and Copying",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;string.h&gt;\n\nvoid build_filepath(const char *dir, const char *file) {\n    char path[256];\n    \n    // DANGER: strcpy + strcat can overflow if dir+file > 256 bytes.\n    // strcpy(path, dir);\n    // strcat(path, \"/\");\n    // strcat(path, file);\n    \n    // PRO-PATTERN: snprintf handles copying, concatenation, and bounds safely.\n    // It guarantees null termination and halts safely if strings are too long.\n    int written = snprintf(path, sizeof(path), \"%s/%s\", dir, file);\n    \n    // Advanced: Check if truncation occurred\n    if (written >= sizeof(path)) {\n        printf(\"ERROR: Path was truncated.\\n\");\n        return;\n    }\n    \n    printf(\"Path: %s\\n\", path);\n}"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t2-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day9-t2-txt-debug-intro",
+          "content": "<p>Analyze the following broken snippet. Find the vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day9-t2-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The strncat Illusion",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;string.h&gt;\n\nvoid append_log(char *log_buffer, size_t buf_size, const char *new_entry) {\n    // Engineer tries to safely append strings using strncat\n    // buf_size is the TOTAL allocated size of the log_buffer\n    strncat(log_buffer, new_entry, buf_size);\n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day9-t2-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "The third parameter of `strncat` is fundamentally misunderstood. It does NOT represent the total capacity of the destination buffer; it represents the *maximum number of characters to copy from the source*. If `buf_size` is 100, and the buffer already contains 90 characters, `strncat` will blindly attempt to append up to 100 NEW characters, massively overflowing the buffer. Fix: You must calculate remaining space: `strncat(log_buffer, new_entry, buf_size - strlen(log_buffer) - 1);`. This complexity is exactly why `snprintf` is universally preferred." }
+          ]
+        },
+        {
+          "type": "callout",
+          "block_id": "day9-t2-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Universal Snprintf:</strong> Ban <code>strcpy</code>, <code>strcat</code>, and <code>sprintf</code> from your codebase entirely. Replace all of them with <code>snprintf</code>. It serves as a unified, mathematically safe alternative for copying, concating, and formatting.</li><li><strong>The Strncpy Trap:</strong> Never use <code>strncpy</code> for C-string manipulation. It was designed for fixed-width UNIX directory structures, not modern strings. If you must use a dedicated copy function, use BSD's <code>strlcpy</code> (if available) or construct your own safe wrapper.</li><li><strong>Memcmp for Secrets:</strong> When comparing passwords, crypto keys, or secure hashes, never use <code>strcmp</code>. <code>strcmp</code> bails out early if strings mismatch, making it vulnerable to Timing Attacks. Always use <code>CRYPTO_memcmp</code> or a constant-time comparison loop.</li><li><strong>Validate Snprintf Returns:</strong> <code>snprintf</code> returns the number of characters it <em>wanted</em> to write. If this value is greater than or equal to your buffer size, silent truncation occurred. Trap it and log a warning.</li><li><strong>Strcmp Evaluation:</strong> <code>strcmp</code> returns <code>0</code> if strings match. A common bug is writing <code>if (strcmp(a, b))</code> to mean \"if they match\". It actually means \"if they differ\". Write <code>if (strcmp(a, b) == 0)</code> explicitly.</li></ul>"
+        },
+        {
+          "type": "callout",
+          "block_id": "day9-t2-callout-antipatterns",
+          "variant": "danger",
+          "color": "var(--danger-border)",
+          "title": "Fatal Anti-Patterns",
+          "content": "<ul><li><strong>Using gets():</strong> The `gets()` function reads from input until a newline without any bounds checking. It is the most historically dangerous function in C, responsible for the 1988 Morris Worm. It was permanently removed in C11. Use `fgets()` instead.</li><li><strong>Format String Attacks:</strong> Writing <code>printf(user_input);</code> instead of <code>printf(\"%s\", user_input);</code>. If the user inputs <code>\"%x %x %x\"</code>, `printf` will blindingly dump physical stack memory to the screen, leaking sensitive pointers and stack canaries.</li><li><strong>Strlen in For-Loops:</strong> As covered previously, recalculating `strlen` in a loop condition is an algorithmic disaster.</li><li><strong>Subtracting Strcmp:</strong> Assuming `strcmp` returns -1 or 1. The standard only guarantees it returns a negative or positive integer. Relying on exactly -1 will fail on different compiler architectures.</li><li><strong>Overlapping Snprintf:</strong> Writing <code>snprintf(buf, size, \"%s add\", buf)</code>. C99 dictates that copying a buffer into itself via `snprintf` is Undefined Behavior and will aggressively corrupt the string content.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t2-sec-challenges",
+          "title": "Industrial Challenges"
+        },
+        {
+          "type": "text",
+          "block_id": "day9-t2-txt-challenges",
+          "content": "<ul><li><strong>Legacy Toolchain Dependencies:</strong> Many defense and aerospace projects are locked to C89 compilers that lack `snprintf`. Engineers are forced to write and validate their own custom bounds-checked string libraries from scratch.</li><li><strong>The POSIX strlcpy War:</strong> The BSD UNIX developers created `strlcpy` and `strlcat` as the perfect, safe replacements for `strncpy`. However, the glibc maintainers violently rejected them, claiming they hid truncation errors. They are still not part of the C standard, forcing developers to implement them manually in Linux environments.</li><li><strong>Null-Pointer Explosions:</strong> Functions like `strlen` and `strcmp` do absolutely zero NULL pointer validation. If you pass them a NULL pointer (often returned by a failed `malloc` or missing `argv`), they instantly Segfault. Every single string function call requires a manual `if (str == NULL)` guard clause.</li><li><strong>Localization Chaos:</strong> Using `toupper()` or `tolower()` on UTF-8 strings shatters the byte encoding. C standard library character functions only work on flat 7-bit ASCII strings.</li><li><strong>Off-By-One Sizes:</strong> Calling `snprintf(buf, strlen(src), \"%s\", src)`. The engineer uses the length of the string as the capacity boundary, forgetting that the capacity MUST include the +1 for the null terminator. The string is permanently truncated by 1 character.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t2-sec-silicon",
+          "title": "The Silicon Bridge"
+        },
+        {
+          "type": "text",
+          "block_id": "day9-t2-txt-silicon",
+          "content": "<p>When executing memory copies (like inside <code>strcpy</code> or <code>memcpy</code>), the compiler does not generate a manual byte-by-byte loop. On x86 architecture, it generates the <code>rep movsb</code> (Repeat Move String Byte) instruction. This delegates the entire copy operation directly to the CPU microcode. The CPU blasts blocks of memory from the Source address to the Destination address across the hardware bus at maximum physical speed until the <code>rcx</code> counter hits zero.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day9-t2-cb-assembly",
+          "language": "nasm",
+          "header": "Assembly Verification (Hardware String Copy)",
+          "code": "; Highly optimized x86 hardware string copy (Used internally by memcpy)\n; rsi = Source Address, rdi = Destination Address, rcx = Byte Count\n\nmov rcx, 1024     ; Set copy limit\nrep movsb         ; HARDWARE LOOP: Moves 1 byte from [rsi] to [rdi], \n                  ; increments both pointers, decrements rcx, and repeats natively."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t2-sec-qa",
+          "title": "Mastery Q&A"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day9-t2-qa-mastery",
+          "items": [
+            { "question": "Why is `strncpy` considered so dangerous if it has 'n' for bounds checking?", "answer": "`strncpy` was designed for fixed-size database fields, not null-terminated C-strings. If the source string is exactly the size of the buffer (or larger), it fills the buffer and DOES NOT write a `\\0`. It also needlessly zero-pads the rest of the buffer if the string is short, wasting CPU cycles." },
+            { "question": "What is the difference between `sprintf` and `snprintf`?", "answer": "`sprintf` takes no buffer size parameter. It blindly trusts that you allocated enough memory for whatever format substitutions it executes. If your integer turns out to be 10 digits instead of 2, it overflows the buffer. `snprintf` demands a hard limit, preventing the overflow." },
+            { "question": "Is `memcpy` faster than `strcpy`?", "answer": "Astronomically faster. `strcpy` must check every single byte to see if it equals `\\0` before copying it. `memcpy` knows the exact size in advance, so the CPU copies large 64-byte chunks directly in parallel using SIMD hardware, bypassing conditionals." },
+            { "question": "How do I clear a string in memory completely?", "answer": "Do not just set `str[0] = '\\0';`. That hides the string from C functions, but the data is physically still there for hackers to read. Use `memset(str, 0, sizeof_buffer);` to physically wipe the RAM to zero." },
+            { "question": "What does `strchr` do?", "answer": "It scans a string and returns a pointer to the very first occurrence of a specific character (e.g., `strchr(url, '?')`). It is heavily used in high-speed custom parsing." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t2-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day9-t2-quiz-mastery",
+          "time_limit_seconds": 375,
+          "questions": [
+            {
+              "question": "What is the guaranteed protection provided by `snprintf` that prevents Buffer Overflows?",
+              "options": [
+                { "id": "t2-q1-a", "text": "It dynamically allocates Heap memory if the buffer is too small.", "is_correct": false, "explanation": "snprintf never allocates memory itself." },
+                { "id": "t2-q1-b", "text": "It throws a runtime error if the string is too long.", "is_correct": false, "explanation": "It does not throw errors; it gracefully truncates." },
+                { "id": "t2-q1-c", "text": "It stops writing exactly 1 byte before the specified capacity, and strictly forces a `\\0` terminator into the final slot, ensuring the string remains valid and memory boundaries are respected.", "is_correct": true, "explanation": "This guarantees that subsequent reads by `printf` or `strlen` will safely halt without dumping arbitrary memory." },
+                { "id": "t2-q1-d", "text": "It restricts all format inputs to a maximum of 32 characters.", "is_correct": false, "explanation": "It places no limits on inputs, only the total output size." }
+              ]
+            },
+            {
+              "question": "A developer writes `char dest[10]; strncpy(dest, \"SUPERADMIN\", 10);`. What catastrophic state is left in `dest`?",
+              "options": [
+                { "id": "t2-q2-a", "text": "The string is truncated to \"SUPERADMI\\0\".", "is_correct": false, "explanation": "That is what `strlcpy` or `snprintf` would do." },
+                { "id": "t2-q2-b", "text": "The memory is padded with zeroes.", "is_correct": false, "explanation": "It only zero-pads if the source is shorter than the capacity." },
+                { "id": "t2-q2-c", "text": "The 10 bytes exactly contain \"SUPERADMIN\", but there is absolutely no null terminator. The next string operation will read straight off the edge into adjacent stack memory.", "is_correct": true, "explanation": "This is the fatal trap of `strncpy`. When source size equals or exceeds capacity, the null terminator is omitted." },
+                { "id": "t2-q2-d", "text": "It triggers a Segfault during the copy.", "is_correct": false, "explanation": "The copy succeeds, the crash happens later during a read." }
+              ]
+            },
+            {
+              "question": "Why is the function `gets()` considered the most dangerous function in the C standard library?",
+              "options": [
+                { "id": "t2-q3-a", "text": "It leaks memory.", "is_correct": false, "explanation": "It doesn't allocate heap memory." },
+                { "id": "t2-q3-b", "text": "It requires the string to be compiled as a constant.", "is_correct": false, "explanation": "It takes arbitrary standard input." },
+                { "id": "t2-q3-c", "text": "It accepts no size parameter and blindly writes incoming stream data to memory until it hits a newline, making stack-smashing buffer overflows practically inevitable.", "is_correct": true, "explanation": "It was used to orchestrate the first major internet worm (Morris Worm) and was permanently deprecated." },
+                { "id": "t2-q3-d", "text": "It fails to read spaces.", "is_correct": false, "explanation": "It reads spaces perfectly fine." }
+              ]
+            },
+            {
+              "question": "What is a 'Format String Attack' (e.g., `printf(user_input);`)?",
+              "options": [
+                { "id": "t2-q4-a", "text": "An attack where the user types non-ASCII characters to crash the parser.", "is_correct": false, "explanation": "Non-ASCII characters do not exploit `printf`." },
+                { "id": "t2-q4-b", "text": "An attack where a malicious user provides format specifiers like `%x` or `%n`. The function mistakenly assumes they are valid variables, popping sensitive registers off the stack and leaking architecture secrets to the terminal.", "is_correct": true, "explanation": "If you don't hardcode the format string as `%s`, `printf` will blindly obey any `%` command embedded in the user's input, exposing the CPU stack to the user." },
+                { "id": "t2-q4-c", "text": "An attack where the string format requires infinite loop processing.", "is_correct": false, "explanation": "It does not trigger loops." },
+                { "id": "t2-q4-d", "text": "An attack targeting integer division by zero.", "is_correct": false, "explanation": "Format strings manipulate memory/stack reading, not math ALUs." }
+              ]
+            },
+            {
+              "question": "How does `snprintf` signify that silent string truncation occurred?",
+              "options": [
+                { "id": "t2-q5-a", "text": "It returns a negative integer.", "is_correct": false, "explanation": "Negative integers indicate encoding errors." },
+                { "id": "t2-q5-b", "text": "It returns an integer greater than or equal to the size parameter provided.", "is_correct": true, "explanation": "It returns the number of characters it *wanted* to write. If this number exceeds the capacity you gave it, you know data was dropped." },
+                { "id": "t2-q5-c", "text": "It sets the `errno` global variable.", "is_correct": false, "explanation": "It does not rely on errno for truncation." },
+                { "id": "t2-q5-d", "text": "It aborts the program.", "is_correct": false, "explanation": "It safely truncates and continues execution." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Safe Parsing (strtol & strtok_r)",
+        "category": "Tooling",
+        "complexity": "Expert",
+        "standard": "C99 / POSIX",
+        "read_time": 30,
+        "prerequisites": ["day-9-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day9-t3-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day9-t3-txt-strategic-problem",
+          "content": "<p>When reading configuration files, parsing HTTP headers, or extracting CSV data, systems engineers must split massive strings into smaller tokens and convert those text tokens into native integers. The original C functions (<code>atoi</code> and <code>strtok</code>) are deeply flawed. <code>atoi</code> cannot detect integer overflow and cannot differentiate between a parsing error and the literal number zero. <code>strtok</code> uses hidden global static variables, causing terrifying cross-thread corruption in modern multi-core servers. Professional parsers demand robust, thread-safe execution and exhaustive error trapping.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t3-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day9-t3-api-main",
+          "signature": "<span class=\"syntax-kw\">long int</span> strtol(<span class=\"syntax-kw\">const char</span> *str, <span class=\"syntax-kw\">char</span> **endptr, <span class=\"syntax-kw\">int</span> base);\n<span class=\"syntax-kw\">char</span> *strtok_r(<span class=\"syntax-kw\">char</span> *str, <span class=\"syntax-kw\">const char</span> *delim, <span class=\"syntax-kw\">char</span> **saveptr);",
+          "description": "The industry-standard, resilient APIs for converting text to integers and tokenizing strings safely in concurrent environments.",
+          "parameters": [
+            { "name": "**endptr", "type": "Double Pointer", "description": "strtol outputs the exact memory address where it stopped parsing, allowing you to check for trailing garbage characters." },
+            { "name": "base", "type": "int", "description": "The mathematical base to parse (10 for decimal, 16 for hex, 0 to auto-detect)." },
+            { "name": "**saveptr", "type": "Double Pointer", "description": "A user-provided pointer for strtok_r to store its iteration state, completely bypassing global static variables." }
+          ],
+          "returns": { "type": "long / char*", "description": "The parsed integer, or a pointer to the isolated string token." },
+          "complexity": "O(N) for the length of the parsed segment.",
+          "exceptions": "strtol sets global 'errno' to ERANGE if the integer overflows or underflows the CPU boundaries."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t3-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day9-t3-txt-mechanics",
+          "content": "<p>When <code>strtok_r</code> parses a string, it is highly destructive. It scans memory until it finds a delimiter character (like a comma), physically overwrites that delimiter with a <code>\\0</code> to isolate the token, and updates your <code>saveptr</code> to point to the next byte. This mutates the original string permanently. <code>strtol</code> is non-destructive. It converts ASCII characters ('1', '0') into binary integers by multiplying an accumulator by 10 and adding the character offset (<code>char - '0'</code>). If the accumulator exceeds <code>LONG_MAX</code>, it caps the output and sets the POSIX <code>errno</code> flag to alert the system.</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day9-t3-svg-mechanics",
+          "caption": "The destructive nature of strtok_r memory mutation.",
+          "alt_text": "Visual showing 'Data,Time' being overwritten to 'Data\\0Time', with saveptr pointing to the 'T'.",
+          "svg_code": "<svg viewBox='0 0 600 200' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='200' fill='var(--bg-card)'/><g transform='translate(50, 20)'><rect x='0' y='0' width='400' height='40' fill='var(--bg-hover)' stroke='var(--border-light)' stroke-width='2' rx='4'/><text x='10' y='25' fill='var(--text-secondary)' font-family='monospace' font-size='14' letter-spacing='5'>D a t a , T i m e \\0</text><text x='200' y='60' fill='var(--warning-border)' font-family='sans-serif' font-size='10'>Original String</text></g><g transform='translate(50, 100)'><rect x='0' y='0' width='400' height='40' fill='var(--bg-hover)' stroke='var(--border-light)' stroke-width='2' rx='4'/><text x='10' y='25' fill='var(--text-primary)' font-family='monospace' font-size='14' letter-spacing='5'>D a t a </text><text x='125' y='25' fill='var(--danger-border)' font-family='monospace' font-size='14' font-weight='bold'>\\0</text><text x='160' y='25' fill='var(--text-primary)' font-family='monospace' font-size='14' letter-spacing='5'>T i m e \\0</text></g><path d='M235 145 L235 180' stroke='var(--success-border)' stroke-width='3' marker-end='url(#arrow-succ)' stroke-dasharray='4,4'/><text x='235' y='195' fill='var(--success-border)' font-family='monospace' text-anchor='middle'>saveptr</text><defs><marker id='arrow-succ' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 10 10 L 0 5 L 10 0 z' fill='var(--success-border)'/></marker></defs></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t3-sec-trench-story",
+          "title": "Production Trench Story"
+        },
+        {
+          "type": "callout",
+          "block_id": "day9-t3-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage: The atoi Silent Overflow",
+          "content": "<p>A telecommunications billing engine processed CDR (Call Detail Record) files. The duration of the call in milliseconds was parsed using <code>atoi(duration_str)</code>. A corrupted network switch sent a malformed record with a duration of \"99999999999\" (far exceeding a 32-bit integer). <code>atoi</code> has absolutely zero overflow protection or error reporting. It silently processed the number, overflowed the CPU integer boundaries, and returned a massive negative number. The database interpreted the negative duration as a system credit, automatically refunding thousands of dollars to user accounts before the anomaly was detected.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t3-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day9-t3-cb-strtok",
+          "language": "c",
+          "header": "1. Thread-Safe Tokenization",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;string.h&gt;\n\nvoid parse_csv(char *line) {\n    // strtok_r requires us to provide a variable to hold the iteration state\n    char *saveptr;\n    \n    // 1st Call: Pass the string. It finds the comma, injects \\0, and returns \"User\"\n    char *token = strtok_r(line, \",\", &saveptr);\n    \n    while (token != NULL) {\n        printf(\"Extracted: %s\\n\", token);\n        // Subsequent Calls: Pass NULL to continue from saveptr\n        token = strtok_r(NULL, \",\", &saveptr);\n    }\n}"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day9-t3-cb-strtol",
+          "language": "c",
+          "header": "2. Bulletproof Integer Parsing",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;stdlib.h&gt;\n#include &lt;errno.h&gt;\n#include &lt;limits.h&gt;\n\nlong parse_safe_int(const char *input) {\n    char *endptr;\n    errno = 0; // Reset POSIX global error flag before operation\n    \n    long val = strtol(input, &endptr, 10);\n    \n    // 1. Trap Hardware Overflow/Underflow\n    if (errno == ERANGE && (val == LONG_MAX || val == LONG_MIN)) {\n        printf(\"FATAL: Value out of system bounds.\\n\");\n        return -1;\n    }\n    \n    // 2. Trap Empty Input or No Digits Found\n    if (endptr == input) {\n        printf(\"FATAL: No digits were found.\\n\");\n        return -1;\n    }\n    \n    // 3. Trap Trailing Garbage (e.g., \"1234abc\")\n    if (*endptr != '\\0') {\n        printf(\"WARNING: Trailing unparsed characters detected: %s\\n\", endptr);\n    }\n    \n    return val;\n}"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t3-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day9-t3-txt-debug-intro",
+          "content": "<p>Analyze the following broken snippet. Find the vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day9-t3-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The Constant Tokenizer",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;string.h&gt;\n\nvoid extract_domain() {\n    // Engineer needs to parse a hardcoded fallback URL\n    char *url = \"https://backend.api.com\";\n    \n    char *saveptr;\n    // Extract everything after the ://\n    char *domain = strtok_r(url, \"://\", &saveptr);\n    \n    printf(\"Domain: %s\\n\", domain);\n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day9-t3-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "The pointer `char *url = \"https://...\";` points to a string literal baked into the `.rodata` read-only segment. `strtok_r` is a destructive function. When it locates the `:` delimiter, it physically attempts to overwrite it with a `\\0` byte to isolate the token. Writing to the read-only segment triggers an instantaneous hardware Segmentation Fault, terminating the process. Fix: To parse string literals, you must either copy them into a mutable stack array (`char url[] = \"...\";`) first, or use a non-destructive custom parsing loop utilizing pointer arithmetic and `strchr`." }
+          ]
+        },
+        {
+          "type": "callout",
+          "block_id": "day9-t3-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Ban Atoi:</strong> Permanently ban <code>atoi</code>, <code>atol</code>, and <code>atof</code> in your codebase. Replace them exclusively with <code>strtol</code>, <code>strtoll</code>, and <code>strtof</code>, and enforce strict <code>errno</code> and <code>endptr</code> validation.</li><li><strong>Reset Errno First:</strong> <code>errno</code> is a thread-local global state. The OS will NOT clear it for you before a function call. You MUST manually write <code>errno = 0;</code> immediately before invoking <code>strtol</code>, otherwise you might read an error leftover from a previous file-system failure.</li><li><strong>Mutable Buffers Only:</strong> Because <code>strtok_r</code> destroys the original string by injecting null terminators, you must only pass mutable heap/stack arrays to it. Never pass a <code>const char*</code>.</li><li><strong>Reentrant Necessity:</strong> Never use <code>strtok</code>. Even in single-threaded programs, <code>strtok</code>'s internal static state will corrupt if you try to tokenize a secondary string while still in the middle of tokenizing a primary string. Always pass an explicit <code>saveptr</code> via <code>strtok_r</code>.</li><li><strong>Delimiters are Sets:</strong> The second parameter of <code>strtok_r</code> (e.g., <code>\" ,;\"</code>) is treated as a SET of individual characters, not a single string pattern. It will split on a space, a comma, OR a semicolon indiscriminately.</li></ul>"
+        },
+        {
+          "type": "callout",
+          "block_id": "day9-t3-callout-antipatterns",
+          "variant": "danger",
+          "color": "var(--danger-border)",
+          "title": "Fatal Anti-Patterns",
+          "content": "<ul><li><strong>Assuming Zero is an Error:</strong> Writing <code>if (atoi(str) == 0) return ERROR;</code>. If the user intentionally inputs the literal string <code>\"0\"</code>, `atoi` returns 0. You cannot distinguish between a successful zero and a parsing failure. `strtol` solves this via `endptr`.</li><li><strong>Ignoring the End Pointer:</strong> Calling `strtol(str, NULL, 10);`. If the user inputs `\"42is_a_good_number\"`, `strtol` stops at '2', returns 42, and drops the rest. By passing NULL, you ignore the trailing garbage, accepting malformed protocol commands as valid.</li><li><strong>strsep Confusion:</strong> Using BSD's `strsep` as a 1:1 drop-in replacement for `strtok_r`. `strtok_r` aggressively skips empty tokens (e.g., `A,,,B` yields `A`, `B`). `strsep` returns empty tokens (yields `A`, ``, ``, `B`), which will crash parsers expecting populated strings.</li><li><strong>SSCANF for Validation:</strong> Using <code>sscanf(str, \"%d\", &amp;val)</code>. It is notoriously fragile for boundary detection and overflow limits compared to the dedicated `strtol` family.</li><li><strong>Destructive Pointer Loss:</strong> Overwriting the original string pointer. If you `malloc` a string and then pass that original pointer to destructive parsers or increment it, you lose the base address required to call `free()`, causing an unrecoverable memory leak.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t3-sec-challenges",
+          "title": "Industrial Challenges"
+        },
+        {
+          "type": "text",
+          "block_id": "day9-t3-txt-challenges",
+          "content": "<ul><li><strong>High-Speed Parsing (JSON/XML):</strong> `strtok_r` modifying strings in-place is highly efficient, but it forces you to copy the entire HTTP payload from the read-only network buffer into RAM before parsing. Zero-copy architectures abandon `strtok_r` entirely, using pointer/length struct pairs (`struct StringView { char* ptr; size_t len; }`) to scan data without mutating it.</li><li><strong>Errno Threading Historical Bugs:</strong> In extremely old UNIX environments, `errno` was a true global variable. Before Thread-Local Storage (TLS) was standardized, threaded parsing with `strtol` was mathematically impossible to secure because threads overwrote each other's `errno` flags constantly.</li><li><strong>Floating Point Parsing Disasters:</strong> Parsing floats with `strtof` is wildly complex because it must account for local cultural configurations (e.g., using commas `3,14` instead of decimals `3.14`). Calling `setlocale()` globally changes this behavior, breaking parsers across massive server ecosystems unpredictably.</li><li><strong>Base Auto-Detection Limits:</strong> Setting `base = 0` in `strtol` auto-detects `0x` as Hex and `0` as Octal. If a user inputs `015` expecting standard decimal 15, `strtol` parses it as Octal 15 (which is Decimal 13), injecting invisible, mathematically valid logic bombs into backend systems.</li><li><strong>The Windows strtok_s:</strong> Microsoft Visual Studio does not support the POSIX standard `strtok_r`. Instead, it provides `strtok_s`. Compiling cross-platform C parsers requires ugly `#ifdef _WIN32` preprocessor blocks to route the function calls.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t3-sec-silicon",
+          "title": "The Silicon Bridge"
+        },
+        {
+          "type": "text",
+          "block_id": "day9-t3-txt-silicon",
+          "content": "<p>Parsing ASCII text to binary integers is intensely taxing on the ALU (Arithmetic Logic Unit). To convert <code>\"123\"</code> to an integer, the CPU executes: <code>Accumulator = (Accumulator * 10) + (Char - 48)</code>. Base-10 multiplication is historically one of the slowest CPU instructions (often requiring specialized hardware shifting and adding). In ultra-low-latency HFT platforms parsing stock ticks, engineers rewrite <code>strtol</code> using SIMD vectorization to multiply 8 ASCII digits simultaneously, stripping away <code>errno</code> and branch checks entirely for raw speed.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day9-t3-cb-assembly",
+          "language": "nasm",
+          "header": "Assembly Verification (ASCII Math Conversion)",
+          "code": "; C Code: val = (val * 10) + (char - '0')\n; Nasm translation of the hot path inside strtol\n\nimul rax, 10          ; Expensive ALU base-10 multiplication\nmovzx edx, BYTE PTR [rsi] ; Read 1 ASCII byte from the string\nsub rdx, 48           ; Subtract 48 ('0') to get raw integer value\nadd rax, rdx          ; Add to accumulator"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t3-sec-qa",
+          "title": "Mastery Q&A"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day9-t3-qa-mastery",
+          "items": [
+            { "question": "Why does `strtol` use a double pointer `**endptr`?", "answer": "The function needs to return the parsed integer natively. However, it ALSO needs to return the memory address where it stopped parsing so you can check for garbage bytes. Because C can only return one value, it requires an Out-Parameter. Passing the address of a pointer (`char **`) allows `strtol` to mutate your pointer to look at the exact halt location." },
+            { "question": "Can `strtok_r` parse multi-character delimiters (e.g., '://')?", "answer": "No. `strtok_r` evaluates the delimiter string as a mathematical set of individual characters. Passing `\"://\"` tells it to split the string if it encounters a colon OR a slash. It does not treat it as a contiguous sequence. You must use `strstr` for multi-character sequences." },
+            { "question": "If `strtok_r` alters the string, how do I retain the original data?", "answer": "You must use `strdup()` or manually `malloc/strcpy` the data to create a volatile working copy. You parse the copy, destroying it in the process, while leaving the original data buffer intact." },
+            { "question": "What is the difference between `strtol` and `strtoll`?", "answer": "`strtol` returns a standard `long` (which is 32-bit on Windows and 64-bit on Linux). `strtoll` returns a `long long` (which is guaranteed strictly to be at least 64-bit everywhere). Always use `strtoll` if mapping to `int64_t`." },
+            { "question": "Why did my parser fail when reading \" 42\"?", "answer": "Trick question. `strtol` aggressively ignores leading whitespace automatically. However, if your manual parser checks `if (str[0] < '0')`, the space will trigger a failure. `strtol` handles spaces, `+`, and `-` signs natively." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day9-t3-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day9-t3-quiz-mastery",
+          "time_limit_seconds": 375,
+          "questions": [
+            {
+              "question": "What is the fatal limitation of using the legacy `atoi()` function to parse integers from a network packet?",
+              "options": [
+                { "id": "t3-q1-a", "text": "It can only parse unsigned integers.", "is_correct": false, "explanation": "It parses signed integers." },
+                { "id": "t3-q1-b", "text": "It has absolutely no overflow protection or error reporting. If the input is massive, it silently overflows the hardware limits, and if the input is letters, it returns 0.", "is_correct": true, "explanation": "This makes it impossible to distinguish between a legitimate zero and a parser failure, and guarantees silent data corruption on large numbers." },
+                { "id": "t3-q1-c", "text": "It requires the string to be passed via a double pointer.", "is_correct": false, "explanation": "It takes a standard `const char*`." },
+                { "id": "t3-q1-d", "text": "It is not thread-safe.", "is_correct": false, "explanation": "atoi is purely mathematical and perfectly thread-safe, just dangerous." }
+              ]
+            },
+            {
+              "question": "How does `strtok_r` physically isolate a string token from the larger buffer?",
+              "options": [
+                { "id": "t3-q2-a", "text": "It dynamically allocates a new string on the Heap and copies the token into it.", "is_correct": false, "explanation": "strtok never allocates memory." },
+                { "id": "t3-q2-b", "text": "It returns a pointer to the start of the token, and relies on the caller to manage the length.", "is_correct": false, "explanation": "It does not rely on length management; it guarantees null termination." },
+                { "id": "t3-q2-c", "text": "It finds the delimiter in the original string buffer and physically overwrites it with a `\\0` (null terminator).", "is_correct": true, "explanation": "This allows it to return a pointer directly into the original buffer, tricking `printf` and other functions into treating the token as an independent, fully terminated string." },
+                { "id": "t3-q2-d", "text": "It shifts all subsequent characters left, deleting the delimiter from memory.", "is_correct": false, "explanation": "It overwrites, it does not execute a massive memmove shift." }
+              ]
+            },
+            {
+              "question": "Why is `strtok()` banned in multithreaded systems, forcing engineers to use `strtok_r()`?",
+              "options": [
+                { "id": "t3-q3-a", "text": "Because `strtok()` utilizes an internal global `static` variable to track its parsing state. Concurrent threads will violently overwrite each other's state pointers.", "is_correct": true, "explanation": "Any C function relying on hidden internal state is a race condition waiting to happen. `strtok_r` forces the engineer to pass their own local `saveptr`, encapsulating state perfectly to the stack frame." },
+                { "id": "t3-q3-b", "text": "Because `strtok()` allocates memory using the main process Heap, causing thread locks.", "is_correct": false, "explanation": "strtok does not allocate memory." },
+                { "id": "t3-q3-c", "text": "Because `strtok()` is not POSIX compliant.", "is_correct": false, "explanation": "It is standard C, just obsolete for concurrent contexts." },
+                { "id": "t3-q3-d", "text": "Because `strtok_r()` executes significantly faster.", "is_correct": false, "explanation": "They execute at the same speed; the difference is thread isolation." }
+              ]
+            },
+            {
+              "question": "When utilizing `strtol()`, you pass `&endptr`. After execution, `*endptr != '\\0'`. What does this indicate?",
+              "options": [
+                { "id": "t3-q4-a", "text": "A hardware overflow occurred.", "is_correct": false, "explanation": "Overflow sets errno." },
+                { "id": "t3-q4-b", "text": "Trailing garbage characters were found. `strtol` successfully parsed the integer, but encountered non-numeric characters before hitting the end of the string.", "is_correct": true, "explanation": "If the input is `1234abc`, `strtol` returns `1234`, and `endptr` will point to `a`. Because `a` is not the string's null terminator, you instantly know the input was malformed." },
+                { "id": "t3-q4-c", "text": "The buffer size was exceeded.", "is_correct": false, "explanation": "strtol is not buffer-size aware; it scans until null." },
+                { "id": "t3-q4-d", "text": "The parsing failed entirely and returned 0.", "is_correct": false, "explanation": "It parsed successfully up to the garbage." }
+              ]
+            },
+            {
+              "question": "If you configure `strtol` to use `base 0` (auto-detection), what parsing flaw are you intentionally subjecting your system to?",
+              "options": [
+                { "id": "t3-q5-a", "text": "It will fail to parse negative numbers.", "is_correct": false, "explanation": "It parses signs perfectly." },
+                { "id": "t3-q5-b", "text": "If a user inputs a number beginning with '0' (like '015'), the parser will treat it as Base-8 Octal instead of Base-10 Decimal, resulting in severe logic mutation.", "is_correct": true, "explanation": "In standard C, `0` prefixes denote Octal. `015` in Octal evaluates to Decimal `13`. If you want strict Decimal parsing, you MUST explicitly hardcode `base 10`." },
+                { "id": "t3-q5-c", "text": "It will treat the string as a floating-point number.", "is_correct": false, "explanation": "strtol only evaluates integers." },
+                { "id": "t3-q5-d", "text": "It triggers Undefined Behavior on Linux.", "is_correct": false, "explanation": "Auto-detection is strictly standardized." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
