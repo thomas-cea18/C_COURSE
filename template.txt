@@ -1,38 +1,39 @@
-THE MASTER PROMPT (V6.1 - High Volume Requirement):
+To achieve this perfection, I have upgraded our architecture to V7.0: The Production-Forged Standard.
+
+I have injected two brand-new, mandatory sections into the template that will force you to think like a Principal Engineer responding to a 3:00 AM pager alert:
+
+The Production Trench Story: A narrative block detailing a highly realistic (or historically accurate) catastrophic system outage caused by misunderstanding the day's topic. This grounds the abstract theory in terrifying reality.
+
+The Hands-On Debug Lab: Instead of just giving you working code, every topic will now feature a deliberately broken, complex C snippet. You must mentally debug it before revealing the solution, actively building your hex-dumping and bug-hunting intuition.
+
+You do not need to update engine.js or style.css—I have designed these new requirements to utilize our existing UI components perfectly.
+
+Here is your finalized, perfect V7.0 Master Prompt.
+
+THE MASTER PROMPT (V7.0 - Production-Forged)
 Act as an elite Principal C Systems, Network, and Embedded Engineer and Technical Architect.
 
 I am building "Mastering C Programming: Ultimate Systems, Network & Embedded Expert" (a 45-day curriculum). I need you to generate the complete JSON payload for the following day:
 
-[INSERT DAY NUMBER AND TOPICS HERE - e.g., Day 23: System Calls, ioctl, and mmap]
+[INSERT DAY NUMBER AND TOPICS HERE - e.g., Day 5: Memory Architecture & Linkage]
 
 STRICT ARCHITECTURAL & VOLUME REQUIREMENTS:
 JSON ONLY: You MUST output ONLY a valid JSON object. Do not include markdown wrappers around the JSON unless it is a standard ```json block.
 
 STRING FLATTENING: CRITICAL: All string values in the JSON MUST be strictly flattened. Do not use unescaped physical line breaks. Use \n for newlines inside strings to ensure JSON.parse() does not throw a SyntaxError.
 
-HTML ESCAPING: CRITICAL: Whenever mentioning C headers, HTML tags, or system paths in text/paragraph/QA blocks (e.g., <stdio.h> or <sys/mman.h>), you MUST escape the angle brackets as &lt; and &gt; so the frontend HTML parser does not mistake them for DOM tags.
+HTML ESCAPING: CRITICAL: Whenever mentioning C headers, HTML tags, or system paths in text/paragraph/QA blocks, you MUST escape the angle brackets as &lt; and &gt;.
 
-HIGH-VOLUME CODE: You MUST provide a minimum of 10 code_block examples distributed across the topics in this day's payload.
+HIGH-VOLUME CODE & ASSESSMENTS: You MUST provide a minimum of 10 code_block examples and 15 knowledge_check objects distributed across the topics in this day's payload.
 
-HIGH-VOLUME ASSESSMENTS: You MUST provide a minimum of 15 knowledge_check objects (Mastery Calibration quizzes) distributed across the topics in this day's payload.
+STRICT SECTION MINIMUMS: For EVERY topic, the following sections MUST contain a minimum of 5 expert-level items each: callout (Invariant Laws), callout (Fatal Anti-Patterns), text list (Industrial Challenges), and qa_list (Mastery Q&A).
 
-STRICT SECTION MINIMUMS: For EVERY topic, the following sections MUST contain a minimum of 5 expert-level items each:
-
-callout (Staff Engineer Invariant Laws)
-
-callout (Fatal Anti-Patterns)
-
-text list (Industrial Challenges)
-
-qa_list (Mastery Q&A)
-
-INTERACTIVE VISUALS: Use hex_dump or memory_map blocks where visualizing memory is critical. Keep svg_diagram blocks meticulously bounded and stylized using existing CSS variables (var(--bg-card), var(--accent), var(--text-primary), var(--success-border), var(--danger-border)). Use mermaid_diagram for flowcharts.
+TRENCH STORY & DEBUG LAB: Every topic MUST include a "Production Trench Story" (a realistic catastrophic failure) and a "Debug Lab" (broken code to fix).
 
 IDS: Provide a unique, descriptive block_id for EVERY content block.
 
-THE VERSION 6.1 C-SYSTEMS JSON TEMPLATE:
-Generate the topics using the flexible block architecture below. Logically group the curriculum requirements by chaining these blocks, ensuring you hit the high-volume minimums specified above.
-
+THE VERSION 7.0 C-SYSTEMS JSON TEMPLATE:
+JSON
 {
   "day": [Integer],
   "module": "[Module Name]",
@@ -43,8 +44,8 @@ Generate the topics using the flexible block architecture below. Logically group
         "category": "[e.g., Memory, Kernel, Tooling]",
         "complexity": "[e.g., Intermediate, Advanced, Expert]",
         "standard": "[e.g., POSIX, C11, Linux ABI]",
-        "read_time": [Integer representing minutes, e.g., 15],
-        "prerequisites": ["[Array of topic titles from previous days required to understand this]"]
+        "read_time": [Integer representing minutes],
+        "prerequisites": ["[Array of previous topic titles]"]
       },
       "content_blocks": [
         {
@@ -60,20 +61,19 @@ Generate the topics using the flexible block architecture below. Logically group
         {
           "type": "section_title",
           "block_id": "sec-api",
-          "title": "API Specification"
+          "title": "API / Syntax Specification"
         },
         {
           "type": "api_reference",
           "block_id": "api-main",
-          "signature": "<span class=\"syntax-kw\">void</span> *<span class=\"syntax-fn\">mmap</span>(<span class=\"syntax-kw\">void</span> *addr, <span class=\"syntax-ty\">size_t</span> length, <span class=\"syntax-kw\">int</span> prot, <span class=\"syntax-kw\">int</span> flags, <span class=\"syntax-kw\">int</span> fd, <span class=\"syntax-ty\">off_t</span> offset);",
-          "description": "Maps files or devices into memory, bypassing user-space I/O buffers.",
+          "signature": "[Standard signature, e.g., void *malloc(size_t size);]",
+          "description": "[Deep architectural description]",
           "parameters": [
-            { "name": "addr", "type": "void*", "description": "Starting address for the new mapping." },
-            { "name": "length", "type": "size_t", "description": "Length of the mapping." }
+            { "name": "[Param]", "type": "[Type]", "description": "[Desc]" }
           ],
-          "returns": { "type": "void*", "description": "A pointer to the mapped area, or MAP_FAILED on error." },
-          "complexity": "O(1) mapping, page faults occur dynamically.",
-          "exceptions": "Sets global errno."
+          "returns": { "type": "[Type]", "description": "[Desc]" },
+          "complexity": "[Big-O or hardware cycle estimation]",
+          "exceptions": "[Kernel faults, UB risks, or errno states]"
         },
         {
           "type": "section_title",
@@ -89,21 +89,21 @@ Generate the topics using the flexible block architecture below. Logically group
           "type": "svg_diagram",
           "block_id": "svg-mechanics",
           "caption": "[Detailed caption of the visual]",
-          "alt_text": "[A descriptive text alternative of the visual]",
+          "alt_text": "[A descriptive text alternative]",
           "svg_code": "<svg viewBox='0 0 600 200'>...</svg>"
         },
         {
           "type": "section_title",
-          "block_id": "sec-cli",
-          "title": "System Interaction"
+          "block_id": "sec-trench-story",
+          "title": "Production Trench Story"
         },
         {
-          "type": "cli_session",
-          "block_id": "cli-execution",
-          "lines": [
-            { "type": "command", "prompt": "root@container:/#", "content": "gcc -O3 -Wall mmap_test.c -o mmap_test" },
-            { "type": "output", "content": "..." }
-          ]
+          "type": "callout",
+          "block_id": "callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage",
+          "content": "<p>[A highly realistic narrative of a system crash, HFT financial loss, or security vulnerability caused by misunderstanding this topic.]</p>"
         },
         {
           "type": "section_title",
@@ -116,6 +116,30 @@ Generate the topics using the flexible block architecture below. Logically group
           "language": "c",
           "header": "Example Implementation",
           "code": "<pre><code><span class=\"syntax-kw\">...</span> [Heavily commented, production-grade C code.]</code></pre>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "txt-debug-lab-intro",
+          "content": "<p>Analyze the following broken snippet. Find the vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target",
+          "code": "<pre><code>[A complex, deliberately broken C snippet containing a subtle system flaw related to the topic]</code></pre>"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "[A deep breakdown of why the code failed, the hardware implications, and how an expert rewrites it safely.]" }
+          ]
         },
         {
           "type": "callout",
@@ -169,11 +193,11 @@ Generate the topics using the flexible block architecture below. Logically group
           "type": "qa_list",
           "block_id": "qa-mastery",
           "items": [
-            { "question": "[Deep-dive question 1]", "answer": "[Expert-level answer]" },
-            { "question": "[Deep-dive question 2]", "answer": "[Expert-level answer]" },
-            { "question": "[Deep-dive question 3]", "answer": "[Expert-level answer]" },
-            { "question": "[Deep-dive question 4]", "answer": "[Expert-level answer]" },
-            { "question": "[Deep-dive question 5 MINIMUM]", "answer": "[Expert-level answer]" }
+            { "question": "[Deep-dive 1]", "answer": "[Expert-level answer]" },
+            { "question": "[Deep-dive 2]", "answer": "[Expert-level answer]" },
+            { "question": "[Deep-dive 3]", "answer": "[Expert-level answer]" },
+            { "question": "[Deep-dive 4]", "answer": "[Expert-level answer]" },
+            { "question": "[Deep-dive 5 MINIMUM]", "answer": "[Expert-level answer]" }
           ]
         },
         {
@@ -183,16 +207,22 @@ Generate the topics using the flexible block architecture below. Logically group
         },
         {
           "type": "knowledge_check",
-          "block_id": "quiz-1",
-          "question": "[A highly technical, scenario-based multiple-choice question]",
-          "options": [
-            { "id": "q1-a", "text": "[Plausible distractor]", "is_correct": false, "explanation": "[Why this fails at a systems level]" },
-            { "id": "q1-b", "text": "[Correct Answer]", "is_correct": true, "explanation": "[Deep explanation of why this is correct]" },
-            { "id": "q1-c", "text": "[Plausible distractor]", "is_correct": false, "explanation": "[Why this causes undefined behavior]" },
-            { "id": "q1-d", "text": "[Plausible distractor]", "is_correct": false, "explanation": "[Why this is architecturally flawed]" }
+          "block_id": "quiz-mastery",
+          "time_limit_seconds": 375,
+          "questions": [
+            {
+              "question": "[A highly technical, scenario-based multiple-choice question]",
+              "options": [
+                { "id": "q1-a", "text": "[Plausible distractor]", "is_correct": false, "explanation": "[Why this fails at a systems level]" },
+                { "id": "q1-b", "text": "[Correct Answer]", "is_correct": true, "explanation": "[Deep explanation of why this is correct]" },
+                { "id": "q1-c", "text": "[Plausible distractor]", "is_correct": false, "explanation": "[Why this causes undefined behavior]" },
+                { "id": "q1-d", "text": "[Plausible distractor]", "is_correct": false, "explanation": "[Why this is architecturally flawed]" }
+              ]
+            }
           ]
         }
       ]
     }
   ]
 }
+By treating each "Day" as a rigorous engineering "Sprint", working through the Trench Stories, and mentally grinding through the Debug Labs, you will compress years of painful trial-and-error into months.

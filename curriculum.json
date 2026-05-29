@@ -1,0 +1,903 @@
+{
+  "curriculum_title": "Mastering C Programming: Ultimate Systems, Network & Embedded Expert (V7.0 Production-Forged)",
+  "target_audience": "Intermediate developers aiming for elite Systems, Network, Kernel, or Embedded Engineering roles.",
+  "prerequisites": [
+    "Basic understanding of computer architecture (RAM, CPU)",
+    "Familiarity with the Linux command line (Bash/Zsh)"
+  ],
+  "target_roles": [
+    "Linux/Unix Systems Engineer",
+    "Embedded Firmware Developer",
+    "High-Frequency Trading (HFT) C/C++ Developer",
+    "Cybersecurity / Vulnerability Researcher",
+    "Linux Kernel Contributor"
+  ],
+  "total_days": 45,
+  "standards": [
+    "C89/C90",
+    "C99",
+    "C11",
+    "POSIX",
+    "Linux ABI",
+    "C23"
+  ],
+  "modules": [
+    {
+      "module": "1: Professional Environment and Hardware Math",
+      "learning_outcomes": [
+        "Set up a reproducible C development environment using Docker.",
+        "Master the 4-stage compilation pipeline.",
+        "Manipulate physical silicon registers using bitwise logic."
+      ],
+      "mini_project": "Build a command-line bitwise calculator (AND, OR, XOR, Shifts) that directly maps logic to simulated 8-bit registers.",
+      "days": [
+        {
+          "day": 1,
+          "title": "Linux C Environment, Compilation Basics, and the GCC Driver",
+          "estimated_hours": 3,
+          "topics": [
+            "Setting up a Linux Dev Container (Docker/VS Code)",
+            "The 4-stage compilation process (Preprocessor, Compiler, Assembler, Linker)",
+            "Using GCC/Clang via CLI (gcc -E, -S, -c, -o)"
+          ],
+          "visual_representation": "A flowchart showing the transformation from .c source code to a binary executable, highlighting intermediate files (.i, .s, .o).",
+          "deprecated_features": [],
+          "resources": [
+            "GNU GCC Documentation: Command Options"
+          ],
+          "assessment_check": "Can compile a multi-file program from the CLI inside a Docker container."
+        },
+        {
+          "day": 2,
+          "title": "Branching Architecture, CPU Pipelines, and Loop Unrolling",
+          "estimated_hours": 3,
+          "topics": [
+            "Control flow to assembly (cmp, jmp)",
+            "Branch Predictor mechanics and pipeline stalls",
+            "Hardware loop optimization and Loop Unrolling"
+          ],
+          "visual_representation": "A diagram mapping a C 'switch' statement to an O(1) Assembly Jump Table.",
+          "deprecated_features": [],
+          "resources": [
+            "Intel Architectures Optimization Manual"
+          ],
+          "assessment_check": "Rewrite a sparse switch statement to eliminate Branch Predictor misses."
+        },
+        {
+          "day": 3,
+          "title": "Integer Types, Signedness Overflow, and IEEE 754 Floating Point",
+          "estimated_hours": 3.5,
+          "topics": [
+            "Two's Complement, Sign Extension, and Integer Promotion",
+            "Exact-width types (stdint.h) and size limits",
+            "IEEE 754 Floating Point approximations, NaN, and Epsilon checking"
+          ],
+          "visual_representation": "A memory map showing how negative signed integers overflow past INT_MAX.",
+          "deprecated_features": [
+            "Implicit int declaration (removed in C99)"
+          ],
+          "resources": [
+            "Modern C - Level 1: Primary types"
+          ],
+          "assessment_check": "Debug a silent failure caused by comparing a signed integer with an unsigned integer."
+        },
+        {
+          "day": 4,
+          "title": "Bitwise Logic, Hardware Shift Operations, and Practical Bit Masking",
+          "estimated_hours": 4,
+          "topics": [
+            "AND (&), OR (|), XOR (^), NOT (~)",
+            "Logical vs Arithmetic Bit shifting (<<, >>) and the Barrel Shifter",
+            "Read-Modify-Write (RMW) register masking patterns"
+          ],
+          "visual_representation": "A visual mapping of 8-bit registers showing bits changing state during masking and shifting operations.",
+          "deprecated_features": [],
+          "resources": [
+            "K&R The C Programming Language: Chapter 2.9"
+          ],
+          "assessment_check": "Write an in-place XOR swap and safely clear the 4th bit of a hardware register using an inverted mask."
+        }
+      ]
+    },
+    {
+      "module": "2: Memory Topology, Pointers, and Arrays",
+      "learning_outcomes": [
+        "Visualize Virtual Memory (Stack vs Data vs Heap).",
+        "Confidently use single and double pointers for memory mutation.",
+        "Manage contiguous Multi-Dimensional matrices and CPU Caching."
+      ],
+      "mini_project": "Develop a lightweight Matrix multiplier utilizing strict Row-Major pointer arithmetic for 100% Cache Line efficiency.",
+      "days": [
+        {
+          "day": 5,
+          "title": "Virtual Memory Segments & Storage Classes",
+          "estimated_hours": 3.5,
+          "topics": [
+            "Text, Data, BSS, Stack, and Heap topology",
+            "Linkage and lifetime (static, extern)",
+            "Thread-local storage (thread_local)"
+          ],
+          "visual_representation": "A vertical memory map diagram showing how the stack grows downward and the heap grows upward.",
+          "deprecated_features": [
+            "The 'register' and 'auto' keywords (ignored by modern compilers)"
+          ],
+          "resources": [
+            "Advanced C Programming (O'Reilly): Memory Management"
+          ],
+          "assessment_check": "Draw the exact memory segment destination for global extern, static local, and thread_local variables."
+        },
+        {
+          "day": 6,
+          "title": "Pointer Mechanics, MMU Faults, and Strict Aliasing",
+          "estimated_hours": 4,
+          "topics": [
+            "Address-of (&) and Dereference (*) physical hardware mechanics",
+            "Pointer scaling and arithmetic",
+            "Type Punning, Opaque Pointers (void*), and the Strict Aliasing Rule"
+          ],
+          "visual_representation": "A number line of memory addresses illustrating how pointer arithmetic scales physically by the type size.",
+          "deprecated_features": [],
+          "resources": [
+            "C Standard ISO/IEC 9899 - Strict Aliasing"
+          ],
+          "assessment_check": "Debug a -O3 optimization failure caused by a Strict Aliasing violation between an int* and float*."
+        },
+        {
+          "day": 7,
+          "title": "Array Decay, Multi-Dimensional Matrix Caching, and VLAs",
+          "estimated_hours": 3.5,
+          "topics": [
+            "Array decay across function boundaries",
+            "Row-Major Order, Contiguous memory, and CPU L1 Cache Line prefetching",
+            "The fatal Stack-Overflow risks of Variable Length Arrays (VLAs)"
+          ],
+          "visual_representation": "A diagram contrasting cache-friendly Row-Major traversal vs cache-hostile Column-Major traversal.",
+          "deprecated_features": [
+            "VLAs (made optional in C11, banned in secure systems)"
+          ],
+          "resources": [
+            "CERT C Secure Coding: ARR30-C"
+          ],
+          "assessment_check": "Refactor a column-major 2D array traversal to row-major to fix a 100x performance penalty."
+        },
+        {
+          "day": 8,
+          "title": "Double Pointers, Arrays of Pointers (argv), and Out-Parameters",
+          "estimated_hours": 4,
+          "topics": [
+            "Multiple indirection (**ptr) and pass-by-reference mutation",
+            "Jagged arrays and command-line argument routing (char *argv[])",
+            "Designing APIs with Out-Parameters to return multiple dynamic states"
+          ],
+          "visual_representation": "A chain of memory blocks demonstrating a pointer pointing to another pointer, which points to the data payload.",
+          "deprecated_features": [],
+          "resources": [
+            "Linux man pages: execve(2) to understand argv/envp memory setup"
+          ],
+          "assessment_check": "Write a function that safely allocates memory for a caller using a double pointer Out-Parameter."
+        }
+      ]
+    },
+    {
+      "module": "3: Strings, Preprocessor, and TDD",
+      "learning_outcomes": [
+        "Manipulate C-strings natively without buffer overflows.",
+        "Implement Test-Driven Development via GCC Linker seams.",
+        "Master X-Macros and advanced metaprogramming."
+      ],
+      "mini_project": "Build a robust string tokenizer and JSON key-value extractor verified entirely through Linker-mocked Unit Tests.",
+      "days": [
+        {
+          "day": 9,
+          "title": "C-Strings, Boundary Safety, and Resilient Parsing",
+          "estimated_hours": 3.5,
+          "topics": [
+            "String literals (.rodata) vs Stack Array mutation",
+            "Boundary-safe string handling (snprintf, strlcpy) vs legacy flaws (strcpy, strncat)",
+            "Thread-safe parsing and error checking (strtok_r, strtol)"
+          ],
+          "visual_representation": "Memory layout showing strcpy overflowing a buffer vs snprintf enforcing a safe truncation boundary.",
+          "deprecated_features": [
+            "gets() (removed in C11)",
+            "atoi(), strcpy(), strcat()"
+          ],
+          "resources": [
+            "CERT C Secure Coding: STR31-C"
+          ],
+          "assessment_check": "Replace all unsafe atoi and strcpy calls in a packet parser with strtol and snprintf."
+        },
+        {
+          "day": 10,
+          "title": "Assertions, GCC Linker Mocking, and Gcov",
+          "estimated_hours": 4,
+          "topics": [
+            "Runtime vs Compile-time assertions (assert vs _Static_assert)",
+            "Mocking hardware dependencies via GCC Linker seams (-Wl,--wrap)",
+            "Generating and analyzing Code Coverage (Line vs Branch) with Gcov"
+          ],
+          "visual_representation": "A Linker redirection diagram showing a call to 'read_sensor' being intercepted and routed to '__wrap_read_sensor'.",
+          "deprecated_features": [],
+          "resources": [
+            "GNU Linker Manual: --wrap"
+          ],
+          "assessment_check": "Write a test harness that mocks a database connection using the --wrap flag to simulate an offline state."
+        },
+        {
+          "day": 11,
+          "title": "Preprocessor Mechanics, Macros, and X-Macro Metaprogramming",
+          "estimated_hours": 4,
+          "topics": [
+            "Include guards, ODR violations, and #pragma once",
+            "Macro Functions, do-while(0) idiom, Stringification (#), and Token Pasting (##)",
+            "The X-Macro pattern for automatic enum/string array synchronization"
+          ],
+          "visual_representation": "A flowchart of the X-Macro expansion, showing a single list generating both an Enum and an Array of Strings.",
+          "deprecated_features": [],
+          "resources": [
+            "GCC CPP Manual: Macros"
+          ],
+          "assessment_check": "Implement an X-Macro list to generate an FSM state enum and a perfectly synced debug string array."
+        }
+      ]
+    },
+    {
+      "module": "4: Alignment, Structs, and Build Systems",
+      "learning_outcomes": [
+        "Control memory alignment explicitly to pack data architectures.",
+        "Serialize structures safely across disparate Endian hardware.",
+        "Automate the compilation pipeline using GNU Make."
+      ],
+      "mini_project": "Design a memory-dense telemetry struct, serialize it securely to Network Byte Order, and build it via an automated Makefile.",
+      "days": [
+        {
+          "day": 12,
+          "title": "Struct Padding, Type Punning, and Endianness",
+          "estimated_hours": 4.5,
+          "topics": [
+            "CPU word boundaries, padding bytes, and offsetof",
+            "Type Punning via Unions and strict aliasing exemptions",
+            "Network Byte Order (Big-Endian vs Little-Endian) and POSIX htonl/ntohl"
+          ],
+          "visual_representation": "A byte-grid diagram showing 'wasted' padding bytes inserted between a char and an int to satisfy hardware alignment.",
+          "deprecated_features": [
+            "Unbounded struct bitfields for cross-platform network parsing"
+          ],
+          "resources": [
+            "The Lost Art of Structure Packing (Eric S. Raymond)"
+          ],
+          "assessment_check": "Reorder a 32-byte struct to completely eliminate 12 bytes of compiler-injected padding."
+        },
+        {
+          "day": 13,
+          "title": "Function Pointers, FSMs, and the Compilation Pipeline",
+          "estimated_hours": 4,
+          "topics": [
+            "Function pointer syntax and Indirect CPU Branch penalties",
+            "O(1) Finite State Machines using Arrays of Function Pointers (Jump Tables)",
+            "The 4-stage pipeline: Preprocessor, cc1 Compiler, Assembler, Linker"
+          ],
+          "visual_representation": "A sequence diagram mapping an Enum state directly to an array index, fetching the corresponding executable assembly address.",
+          "deprecated_features": [],
+          "resources": [
+            "Linux Kernel Source: Jump Tables"
+          ],
+          "assessment_check": "Replace a 20-case switch statement with an O(1) function pointer jump table."
+        },
+        {
+          "day": 14,
+          "title": "Static vs Dynamic Libraries, GNU Make, and ELF Binaries",
+          "estimated_hours": 4,
+          "topics": [
+            "Creating .a and .so files (-shared, -fPIC) and resolving LD_LIBRARY_PATH",
+            "Makefile Directed Acyclic Graphs (DAGs), Targets, and Automatic Variables",
+            "Dissecting the ELF Binary format (readelf, objdump, nm)"
+          ],
+          "visual_representation": "A memory topology contrasting static library binary bloat against a single Shared Object (.so) mapped in RAM.",
+          "deprecated_features": [],
+          "resources": [
+            "GNU Make Manual",
+            "man 5 elf"
+          ],
+          "assessment_check": "Extract the Symbol Table from an ELF Object file using 'nm' to identify missing Linker dependencies."
+        }
+      ]
+    },
+    {
+      "module": "5: User-Space Memory and Encapsulation",
+      "learning_outcomes": [
+        "Manage file/stream boundaries and OS buffering.",
+        "Implement Variadic Functions manually via stack scraping.",
+        "Bypass generic glibc allocations using custom Arena memory architectures."
+      ],
+      "mini_project": "Build an Opaque custom memory allocator (Arena) that processes variadic inputs safely without a single memory leak.",
+      "days": [
+        {
+          "day": 15,
+          "title": "I/O Streams, Variadics, and Encapsulation",
+          "estimated_hours": 4,
+          "topics": [
+            "Standard I/O buffering (stdout vs stderr) and fflush",
+            "Variadic Functions (stdarg.h, va_list) and ABI stack scraping",
+            "The pImpl Idiom: Perfect encapsulation via Opaque Pointers"
+          ],
+          "visual_representation": "A visual showing va_start pointing to the first argument, and va_arg jumping the pointer linearly down the hardware stack.",
+          "deprecated_features": [
+            "scanf() for generic string input"
+          ],
+          "resources": [
+            "man 3 stdarg"
+          ],
+          "assessment_check": "Write a custom variadic logger function that formats a string and immediately flushes it to a disk file."
+        },
+        {
+          "day": 16,
+          "title": "Heap Internals: malloc, free, and Glibc Metadata",
+          "estimated_hours": 3.5,
+          "topics": [
+            "The physics of dynamic memory (brk, sbrk, mmap)",
+            "Glibc malloc chunk metadata, sizing, and alignment",
+            "Heap fragmentation and allocation algorithms (First-Fit, Best-Fit)"
+          ],
+          "visual_representation": "A block diagram of a malloc Heap chunk, revealing the hidden 16-byte metadata header preceding the user's data pointer.",
+          "deprecated_features": [],
+          "resources": [
+            "Glibc malloc internal architecture documentation"
+          ],
+          "assessment_check": "Calculate the exact physical RAM wasted by metadata overhead when allocating 10,000 separate 4-byte integers."
+        },
+        {
+          "day": 17,
+          "title": "Memory Leaks, Dangling Pointers, and Use-After-Free",
+          "estimated_hours": 3,
+          "topics": [
+            "Memory Leaks vs Resource Exhaustion",
+            "The mechanics of Dangling Pointers and Double Free aborts",
+            "Use-After-Free (UAF) exploitation theory"
+          ],
+          "visual_representation": "An execution timeline showing memory being freed, subsequently reallocated to an attacker's payload, and then dangerously manipulated via the original dangling pointer.",
+          "deprecated_features": [],
+          "resources": [
+            "CWE-416: Use After Free"
+          ],
+          "assessment_check": "Identify and patch a subtle memory leak occurring exclusively inside an early-return error handling block."
+        },
+        {
+          "day": 18,
+          "title": "Bypassing Malloc: Arena (Linear) Allocators and Object Pools",
+          "estimated_hours": 4.5,
+          "topics": [
+            "Why glibc malloc is too slow for gaming and high-frequency trading",
+            "Architecting Arena (Linear) Allocators for O(1) allocation and 1-call teardowns",
+            "Object Pools / Slab Allocators for fragmentation-free fixed-size nodes"
+          ],
+          "visual_representation": "A memory map contrasting a fragmented standard heap with a contiguous Arena Allocator tailored for fast, localized object lifetimes.",
+          "deprecated_features": [],
+          "resources": [
+            "Game Engine Architecture: Memory Management"
+          ],
+          "assessment_check": "Implement an Arena Allocator that pre-allocates 1MB and dishes out memory offsets sequentially."
+        }
+      ]
+    },
+    {
+      "module": "6: Advanced State & Data Structures",
+      "learning_outcomes": [
+        "Implement dynamic memory structures (Lists, Hashes).",
+        "Master the 'Intrusive' container architecture used by the Linux Kernel.",
+        "Handle catastrophic state failures utilizing setjmp/longjmp."
+      ],
+      "mini_project": "Build an Intrusive Hash Table leveraging Linux container_of macros for zero-allocation routing.",
+      "days": [
+        {
+          "day": 19,
+          "title": "Building Cache-Friendly Linked Lists and Intrusive Structs",
+          "estimated_hours": 4,
+          "topics": [
+            "Singly vs Doubly Linked Lists and Memory Ownership",
+            "The Cache-Miss problem of standard fragmented lists",
+            "Linux Kernel Intrusive Lists and the offsetof/container_of macro"
+          ],
+          "visual_representation": "A diagram comparing standard lists (nodes holding data pointers) to Intrusive lists (data holding node pointers).",
+          "deprecated_features": [],
+          "resources": [
+            "Linux Kernel Documentation: Linked Lists"
+          ],
+          "assessment_check": "Implement the container_of macro to extract a parent struct pointer from an embedded intrusive list node."
+        },
+        {
+          "day": 20,
+          "title": "Hash Tables, Bitmaps, and Ring Buffers",
+          "estimated_hours": 4,
+          "topics": [
+            "Hash Table string hashing (djb2) and collision chaining",
+            "Bitmaps for ultra-dense Boolean tracking",
+            "Ring Buffers (Circular Queues) for lock-free single-producer consumer tracking"
+          ],
+          "visual_representation": "A circular array diagram with Head and Tail pointers chasing each other indefinitely.",
+          "deprecated_features": [],
+          "resources": [
+            "Introduction to Algorithms (Cormen) - Hash Tables"
+          ],
+          "assessment_check": "Write a Ring Buffer implementation that safely overwrites the oldest data when capacity is reached."
+        },
+        {
+          "day": 21,
+          "title": "Extreme State Exits: Exceptions in C via setjmp and longjmp",
+          "estimated_hours": 3,
+          "topics": [
+            "Simulating try/catch Exception Handling in C",
+            "The setjmp/longjmp context saving mechanics",
+            "Stack Unwinding failures and volatile register preservation"
+          ],
+          "visual_representation": "A call-stack diagram demonstrating longjmp bypassing normal function returns, jumping instantly back down the stack frame history.",
+          "deprecated_features": [],
+          "resources": [
+            "man 3 setjmp"
+          ],
+          "assessment_check": "Utilize setjmp/longjmp to immediately abort a deep recursive parsing function upon encountering a fatal syntax error."
+        }
+      ]
+    },
+    {
+      "module": "7: POSIX Systems & Process Control",
+      "learning_outcomes": [
+        "Interface directly with the Linux Kernel via Syscalls.",
+        "Achieve Zero-Copy data transfers using Memory Mapped files (mmap).",
+        "Clone processes, execute new binaries, and handle asynchronous hardware signals."
+      ],
+      "mini_project": "Develop a background Daemon process that memory-maps a hardware file, detaches from the terminal, and safely traps SIGINT to exit.",
+      "days": [
+        {
+          "day": 22,
+          "title": "The Virtual File System (VFS), File Descriptors, and ioctl",
+          "estimated_hours": 3.5,
+          "topics": [
+            "The 'Everything is a File' UNIX philosophy",
+            "File Descriptors vs C Streams (FILE*)",
+            "Configuring hardware devices and terminal TTYs using ioctl"
+          ],
+          "visual_representation": "An architecture diagram mapping User-Space File Descriptors through the Kernel VFS down to physical hardware drivers.",
+          "deprecated_features": [],
+          "resources": [
+            "Advanced Programming in the UNIX Environment (APUE)"
+          ],
+          "assessment_check": "Extract the raw File Descriptor integer from a FILE* and use ioctl to query the exact pixel dimensions of the terminal."
+        },
+        {
+          "day": 23,
+          "title": "POSIX Raw I/O (read, write, open) vs C Standard I/O",
+          "estimated_hours": 3,
+          "topics": [
+            "Invoking Syscalls: open, read, write, close",
+            "Unbuffered I/O mechanics and Context Switch overhead",
+            "File permissions and the umask"
+          ],
+          "visual_representation": "A timeline contrasting the latency of 1,000 unbuffered 1-byte write() syscalls vs 1 buffered 1,000-byte fwrite() call.",
+          "deprecated_features": [],
+          "resources": [
+            "man 2 open"
+          ],
+          "assessment_check": "Rewrite a file parsing utility to use raw POSIX open() and read() syscalls directly, handling partial reads safely."
+        },
+        {
+          "day": 24,
+          "title": "Memory Mapping Files and Devices via mmap()",
+          "estimated_hours": 4,
+          "topics": [
+            "Zero-Copy Architecture: Bypassing the Kernel I/O buffer",
+            "Mapping files directly into Virtual RAM using mmap",
+            "Page alignment, PROT_READ/WRITE, and MAP_SHARED vs MAP_PRIVATE"
+          ],
+          "visual_representation": "A memory map showing mmap bypassing the standard read/write OS buffer, pointing the user's Virtual RAM directly to the Disk Cache.",
+          "deprecated_features": [],
+          "resources": [
+            "man 2 mmap"
+          ],
+          "assessment_check": "Map a 1GB file into RAM using mmap and modify a specific byte offset without issuing a single write() syscall."
+        },
+        {
+          "day": 25,
+          "title": "Process Cloning: The fork() and execve() Architecture",
+          "estimated_hours": 4,
+          "topics": [
+            "The mechanics of fork(): Copy-on-Write (CoW) memory spaces",
+            "Branching parent vs child execution paths",
+            "Overwriting the process image using the execve() family"
+          ],
+          "visual_representation": "A process tree diagram showing a Parent invoking fork() to clone itself, followed by the Child invoking execve() to load a new binary.",
+          "deprecated_features": [],
+          "resources": [
+            "man 2 fork",
+            "man 2 execve"
+          ],
+          "assessment_check": "Write a program that uses fork() and execve() to spawn a child process that executes the 'ls -la' system command."
+        },
+        {
+          "day": 26,
+          "title": "Process State: Zombies, Orphans, and waitpid()",
+          "estimated_hours": 3,
+          "topics": [
+            "The lifecycle of a Process and the PID table",
+            "Reaping exit statuses using wait() and waitpid()",
+            "Zombie processes (unreaped children) vs Orphan processes (dead parents)"
+          ],
+          "visual_representation": "A state machine diagram showing process execution states: Running, Sleeping, Stopped, and Zombie.",
+          "deprecated_features": [],
+          "resources": [
+            "APUE - Process Control"
+          ],
+          "assessment_check": "Write a parent process that spawns 5 children and uses waitpid() to systematically collect and log all 5 exit codes."
+        },
+        {
+          "day": 27,
+          "title": "Asynchronous Interrupts: Signal Handling (SIGINT, SIGSEGV)",
+          "estimated_hours": 4,
+          "topics": [
+            "Hardware interrupts routed to Software Signals",
+            "Trapping signals using sigaction (vs deprecated signal())",
+            "Reentrancy rules: What functions are Async-Signal-Safe?"
+          ],
+          "visual_representation": "An execution timeline showing the main thread abruptly halted by the Kernel to execute the Signal Handler function asynchronously.",
+          "deprecated_features": [
+            "The legacy signal() function (Unreliable across OS flavors)"
+          ],
+          "resources": [
+            "man 7 signal"
+          ],
+          "assessment_check": "Implement a signal handler utilizing sigaction that safely catches SIGINT (Ctrl+C) to close database connections before exiting."
+        },
+        {
+          "day": 28,
+          "title": "Daemonization: Detaching from TTYs and Background Services",
+          "estimated_hours": 3.5,
+          "topics": [
+            "The Double-Fork architecture",
+            "Creating a new Session ID (setsid) to detach from the terminal",
+            "Closing standard file descriptors and redirecting to /dev/null"
+          ],
+          "visual_representation": "A flowchart detailing the precise POSIX steps required to perfectly orphan a process into a background Daemon.",
+          "deprecated_features": [
+            "daemon() (often considered non-standard or problematic in systemd environments)"
+          ],
+          "resources": [
+            "APUE - Daemon Processes"
+          ],
+          "assessment_check": "Write a C program that daemonizes itself, detaches from the CLI, and writes a heartbeat log to /var/log/syslog every 10 seconds."
+        }
+      ]
+    },
+    {
+      "module": "8: Multithreading, Concurrency & IPC",
+      "learning_outcomes": [
+        "Architect highly concurrent, thread-safe software.",
+        "Debug Race Conditions, Deadlocks, and Priority Inversions.",
+        "Pass binary payloads across process boundaries at massive speeds."
+      ],
+      "mini_project": "Build an ultra-fast IPC Producer/Consumer pipeline sharing an mmap'd Ring Buffer across two isolated processes via POSIX Semaphores.",
+      "days": [
+        {
+          "day": 29,
+          "title": "Thread Spawning (pthreads), Context Switching, and Shared Memory Constraints",
+          "estimated_hours": 3.5,
+          "topics": [
+            "Processes vs Threads: Shared Heap/Data vs Private Stacks",
+            "Spawning and joining threads using pthread_create",
+            "Context Switching overhead in the CPU scheduler"
+          ],
+          "visual_representation": "A memory map contrasting two isolated Processes vs two Threads sharing the exact same Global memory and Heap.",
+          "deprecated_features": [],
+          "resources": [
+            "man 7 pthreads"
+          ],
+          "assessment_check": "Spawn 4 worker threads that each process a quadrant of a massive array concurrently, joining their results in the main thread."
+        },
+        {
+          "day": 30,
+          "title": "Mutexes, Semaphores, Condition Variables, and Deadlocks",
+          "estimated_hours": 4.5,
+          "topics": [
+            "Mutual Exclusion (pthread_mutex_t) to prevent Data Races",
+            "Signaling state changes using Condition Variables (pthread_cond_t)",
+            "Resource tracking with Semaphores and debugging Deadlocks / Priority Inversion"
+          ],
+          "visual_representation": "A state diagram showing a thread sleeping on a Condition Variable lock until explicitly signaled by a worker thread.",
+          "deprecated_features": [],
+          "resources": [
+            "Operating Systems: Three Easy Pieces (Concurrency)"
+          ],
+          "assessment_check": "Implement a Thread-Safe Job Queue using a Mutex to protect the data and a Condition Variable to wake up sleeping workers."
+        },
+        {
+          "day": 31,
+          "title": "Cross-Process Routing: Anonymous Pipes, FIFOs, and Message Queues",
+          "estimated_hours": 4,
+          "topics": [
+            "Unidirectional byte streams using pipe()",
+            "Named pipes (FIFOs) persisting in the filesystem",
+            "POSIX Message Queues for structured, prioritized datagram passing"
+          ],
+          "visual_representation": "An architecture diagram showing a Parent and Child process writing and reading from opposing ends of a unidirectional Pipe.",
+          "deprecated_features": [
+            "System V IPC (msgget)"
+          ],
+          "resources": [
+            "man 2 pipe"
+          ],
+          "assessment_check": "Create an Anonymous Pipe before forking, then have the child process stream file data through the pipe to the parent."
+        },
+        {
+          "day": 32,
+          "title": "Ultra-Fast IPC: POSIX Shared Memory and Unix Domain Sockets",
+          "estimated_hours": 4.5,
+          "topics": [
+            "Setting up shared RAM blocks using shm_open and mmap",
+            "Synchronizing cross-process memory using process-shared Semaphores",
+            "Unix Domain Sockets (AF_UNIX) for bidirectional, zero-network local routing"
+          ],
+          "visual_representation": "A RAM diagram showing two distinct Virtual Memory spaces pointing their Page Tables to the exact same physical RAM Shared Memory block.",
+          "deprecated_features": [
+            "System V Shared Memory (shmget)"
+          ],
+          "resources": [
+            "man 7 shm_overview"
+          ],
+          "assessment_check": "Write two separate C binaries. Process A maps a Shared Memory block and writes a struct. Process B maps it and reads the struct instantly."
+        }
+      ]
+    },
+    {
+      "module": "9: Network Sockets & Protocols",
+      "learning_outcomes": [
+        "Understand the OSI model and socket APIs.",
+        "Implement robust, persistent TCP Streams and fast UDP Datagrams.",
+        "Overcome network blocking with fcntl."
+      ],
+      "mini_project": "Write a multi-client TCP Chat Server capable of serializing custom binary message structs and broadcasting them across sockets.",
+      "days": [
+        {
+          "day": 33,
+          "title": "The OSI Model, IP/Port Binding, and building a TCP Server",
+          "estimated_hours": 4,
+          "topics": [
+            "The Berkeley Sockets API (socket, bind, listen, accept)",
+            "TCP state mechanics (SYN, ACK) and reliable stream guarantees",
+            "Handling endianness with sockaddr_in structures"
+          ],
+          "visual_representation": "A chronological sequence diagram illustrating the Client connect() handshake synchronizing with the Server accept() API.",
+          "deprecated_features": [],
+          "resources": [
+            "Beej's Guide to Network Programming"
+          ],
+          "assessment_check": "Build a basic TCP Echo Server that binds to port 8080, accepts a client connection, and echoes strings back."
+        },
+        {
+          "day": 34,
+          "title": "UDP Datagrams, Packet Fragmentation, and Binary Serialization",
+          "estimated_hours": 4,
+          "topics": [
+            "Connectionless transmission using UDP (sendto, recvfrom)",
+            "MTU limits, packet fragmentation, and out-of-order delivery",
+            "Serializing C structs securely to raw byte buffers for network transport"
+          ],
+          "visual_representation": "A comparison diagram showing TCP's ordered byte-stream vs UDP's chaotic, isolated datagram delivery.",
+          "deprecated_features": [],
+          "resources": [
+            "RFC 768 (UDP)"
+          ],
+          "assessment_check": "Serialize a Game State struct into a byte array, transmit it via UDP, and accurately deserialize it on the receiver."
+        },
+        {
+          "day": 35,
+          "title": "Blocking vs Non-Blocking I/O (fcntl and EAGAIN)",
+          "estimated_hours": 3.5,
+          "topics": [
+            "The CPU stall of blocking recv() and accept() calls",
+            "Using fcntl to switch sockets to O_NONBLOCK mode",
+            "Trapping EAGAIN / EWOULDBLOCK error codes to resume processing"
+          ],
+          "visual_representation": "A timeline contrasting a blocked thread waiting for network data vs a non-blocking thread checking the socket and moving on instantly.",
+          "deprecated_features": [],
+          "resources": [
+            "man 2 fcntl"
+          ],
+          "assessment_check": "Refactor a TCP socket to Non-Blocking mode and handle the EAGAIN error gracefully without crashing."
+        }
+      ]
+    },
+    {
+      "module": "10: Security, Fuzzing, & Tooling",
+      "learning_outcomes": [
+        "Detect and eliminate memory corruption using runtime sanitizers.",
+        "Automate vulnerability discovery using Fuzzing tools.",
+        "Enforce strict MISRA C guidelines for safety-critical logic."
+      ],
+      "mini_project": "Set up a complete AFL++ fuzzing harness for a custom text parser, discover a hidden buffer overflow, and patch the C code using ASan logs.",
+      "days": [
+        {
+          "day": 36,
+          "title": "Dynamic Analysis: Valgrind, AddressSanitizer (ASan), and ThreadSanitizer",
+          "estimated_hours": 4,
+          "topics": [
+            "Memory profiling and leak detection via Valgrind's Memcheck",
+            "Compiling with GCC Sanitizers (-fsanitize=address, undefined, thread)",
+            "Interpreting ASan Red-Zone shadow memory crash reports"
+          ],
+          "visual_representation": "A shadow memory diagram illustrating how ASan poisons the bytes immediately surrounding an array to catch out-of-bounds reads.",
+          "deprecated_features": [],
+          "resources": [
+            "Google Sanitizers GitHub Documentation"
+          ],
+          "assessment_check": "Compile a buggy C program using AddressSanitizer and successfully identify the exact line number of a Use-After-Free violation."
+        },
+        {
+          "day": 37,
+          "title": "Automated Vulnerability Discovery: Fuzzing via AFL++",
+          "estimated_hours": 4.5,
+          "topics": [
+            "The concept of Coverage-Guided Genetic Fuzzing",
+            "Compiling with afl-gcc to inject branch-tracking instrumentation",
+            "Writing efficient Fuzz Harnesses that consume raw byte mutation streams"
+          ],
+          "visual_representation": "A workflow diagram showing AFL++ mutating inputs, feeding them into the target binary, mapping the execution branches, and saving inputs that trigger new paths.",
+          "deprecated_features": [],
+          "resources": [
+            "AFL++ Official Documentation"
+          ],
+          "assessment_check": "Execute an AFL++ fuzzer against a vulnerable binary parser and isolate the specific mutated input file that triggers the SIGSEGV."
+        },
+        {
+          "day": 38,
+          "title": "Safety-Critical C: The MISRA C Standard",
+          "estimated_hours": 3,
+          "topics": [
+            "Core principles of MISRA C:2012 for automotive and aerospace systems",
+            "Banning dynamic memory (malloc) and variable length arrays (VLAs)",
+            "Integrating static analysis tools (cppcheck, clang-tidy) to enforce compliance"
+          ],
+          "visual_representation": "A terminal output snippet of clang-tidy aggressively highlighting MISRA rule violations regarding implicit type conversions.",
+          "deprecated_features": [],
+          "resources": [
+            "MISRA C:2012 Guidelines"
+          ],
+          "assessment_check": "Run cppcheck with MISRA flags enabled on a previous project and rewrite the code to resolve all static analysis warnings."
+        }
+      ]
+    },
+    {
+      "module": "11: Bare Metal & Hardware Interfaces",
+      "learning_outcomes": [
+        "Control CPU hardware directly using Inline Assembly.",
+        "Understand the mechanics of booting a system without an OS.",
+        "Architect Bare-Metal Linker Scripts for Microcontrollers."
+      ],
+      "mini_project": "Write a functional ARM Cortex-M bootloader sequence using a custom `.ld` script and Inline Assembly to set up the Stack Pointer and zero the BSS.",
+      "days": [
+        {
+          "day": 39,
+          "title": "Inline Assembly: Interacting with CPU Registers natively in GCC",
+          "estimated_hours": 4,
+          "topics": [
+            "GCC Extended Asm syntax (asm volatile)",
+            "Mapping C variables directly to hardware input/output registers",
+            "Clobber lists and protecting the CPU pipeline from optimizer assumptions"
+          ],
+          "visual_representation": "A diagram demonstrating the syntax mapping of C variables into the %0 and %1 operands of a raw Assembly instruction block.",
+          "deprecated_features": [],
+          "resources": [
+            "GCC Manual: How to Use Inline Assembly Language in C Code"
+          ],
+          "assessment_check": "Write an Inline Assembly block that executes the x86 CPUID instruction to extract the processor's vendor string into a C char array."
+        },
+        {
+          "day": 40,
+          "title": "OS Bypassing: Writing Bare-Metal Linker Scripts (.ld)",
+          "estimated_hours": 4.5,
+          "topics": [
+            "The boot sequence without an OS (Reset Vectors and CRT0)",
+            "Writing a Linker Script to physically map .text to Flash ROM and .data to SRAM",
+            "Defining linker symbols (e.g., _sbss, _ebss) for C code to reference during boot initialization"
+          ],
+          "visual_representation": "A physical memory map of a Microcontroller, showing the Linker Script directing executable code to Flash and writable variables to RAM.",
+          "deprecated_features": [],
+          "resources": [
+            "GNU LD Linker Script Documentation"
+          ],
+          "assessment_check": "Write a minimal .ld Linker Script that explicitly defines the Entry Point and forces the .text section to start at address 0x08000000."
+        }
+      ]
+    },
+    {
+      "module": "12: Ultra-Low Latency & High-Performance Architecture",
+      "learning_outcomes": [
+        "Utilize AVX/SSE Compiler Intrinsics for parallel math.",
+        "Implement non-blocking concurrency via C11 Atomics.",
+        "Architect an asynchronous Event Loop capable of resolving the C10K problem."
+      ],
+      "mini_project": "The Capstone: Architect a Single-Threaded epoll Web Server utilizing Arena Memory Allocators, capable of handling 10,000 concurrent sockets without Mutex locks.",
+      "days": [
+        {
+          "day": 41,
+          "title": "SIMD Vectorization (AVX/SSE) via Compiler Intrinsics",
+          "estimated_hours": 4,
+          "topics": [
+            "The concept of Single Instruction, Multiple Data (SIMD)",
+            "Utilizing AVX2/AVX-512 Intrinsics (_mm256_add_epi32) to process arrays concurrently",
+            "Data alignment requirements (_mm_malloc) for hardware vector registers"
+          ],
+          "visual_representation": "A processor diagram contrasting standard ALU sequential execution vs a Vector Register processing 8 integers in a single clock cycle.",
+          "deprecated_features": [],
+          "resources": [
+            "Intel Intrinsics Guide"
+          ],
+          "assessment_check": "Rewrite a standard 'for' loop that adds two large arrays together to use AVX2 Intrinsics, achieving a 4x+ speedup."
+        },
+        {
+          "day": 42,
+          "title": "Lock-Free Programming: C11 Atomics (stdatomic.h) and Memory Order",
+          "estimated_hours": 5,
+          "topics": [
+            "The _Atomic keyword and hardware Compare-And-Swap (CAS) loops",
+            "Bypassing Mutex bottlenecks in highly concurrent queues",
+            "Memory Ordering semantics (Acquire, Release, Seq_Cst) and CPU instruction reordering"
+          ],
+          "visual_representation": "A timeline showing multiple threads executing a CAS loop natively in hardware, resolving a race condition instantly without OS-level Mutex sleep states.",
+          "deprecated_features": [],
+          "resources": [
+            "C11 Standard Library: <stdatomic.h>"
+          ],
+          "assessment_check": "Implement a perfectly thread-safe, lock-free global counter that multiple pthreads increment simultaneously using atomic fetches."
+        },
+        {
+          "day": 43,
+          "title": "Hardware Concurrency Bugs: Cache Coherency, False Sharing, and the ABA Problem",
+          "estimated_hours": 4,
+          "topics": [
+            "The MESI Cache Coherence Protocol across multi-core architectures",
+            "Diagnosing False Sharing: Threads thrashing the same 64-byte Cache Line",
+            "The ABA Problem in Lock-Free structures and mitigation theory"
+          ],
+          "visual_representation": "A CPU diagram illustrating two cores violently invalidating each other's L1 caches because they are mutating independent variables that share the same physical cache line.",
+          "deprecated_features": [],
+          "resources": [
+            "Intel 64 Architecture Software Developer's Manual (Cache Mechanics)"
+          ],
+          "assessment_check": "Use the alignas() keyword to force two independently threaded variables onto separate 64-byte cache boundaries, eliminating False Sharing."
+        },
+        {
+          "day": 44,
+          "title": "Introduction to epoll: The Event-Driven Linux Architecture",
+          "estimated_hours": 4.5,
+          "topics": [
+            "The C10K Problem: Why 'One Thread per Client' architecture fails at scale",
+            "The epoll API (epoll_create, epoll_ctl, epoll_wait)",
+            "Edge-Triggered (EPOLLET) vs Level-Triggered notification states"
+          ],
+          "visual_representation": "An architecture diagram showing a single Event Loop (epoll_wait) efficiently managing thousands of non-blocking sockets.",
+          "deprecated_features": [
+            "select() and poll() (O(N) scaling bottlenecks)"
+          ],
+          "resources": [
+            "man 7 epoll"
+          ],
+          "assessment_check": "Configure an epoll instance to monitor 3 non-blocking sockets and print a message exactly when a socket becomes readable."
+        },
+        {
+          "day": 45,
+          "title": "Capstone: Architecting a Single-Threaded epoll Web Server",
+          "estimated_hours": 6,
+          "topics": [
+            "Combining epoll, non-blocking fcntl sockets, and robust parsing into a monolithic engine",
+            "Implementing an Arena Allocator to manage per-request HTTP parsing without heap fragmentation",
+            "Executing load testing (Apache Bench / wrk) to verify lock-free, zero-leak performance at 10,000+ RPS"
+          ],
+          "visual_representation": "A comprehensive system blueprint mapping incoming network packets through the epoll event loop, into the Arena memory space, and back out via the network socket.",
+          "deprecated_features": [],
+          "resources": [
+            "RFC 9112 - HTTP/1.1 Message Syntax"
+          ],
+          "assessment_check": "Successfully build, compile, and benchmark the C Web Server, achieving 0 memory leaks in ASan under extreme load tests."
+        }
+      ]
+    }
+  ]
+}

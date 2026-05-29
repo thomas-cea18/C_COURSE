@@ -1,23 +1,7 @@
-const APP_VERSION = "9.5.0";
+const APP_VERSION = "7.0.0";
 
-const curriculumData = {
-    "modules": [
-        { "module": "1: Professional Environment and Core Fundamentals", "days": [{ "day": 1, "title": "Docker, GCC, & Compilation" }, { "day": 2, "title": "Control Flow Basics" }, { "day": 3, "title": "Types, Sizes & Limits" }, { "day": 4, "title": "Bitwise Operations" }] },
-        { "module": "2: Memory Layout, Pointers, and Arrays", "days": [{ "day": 5, "title": "Memory Architecture" }, { "day": 6, "title": "Intro to Pointers" }, { "day": 7, "title": "Arrays & VLAs" }, { "day": 8, "title": "Pointers to Pointers" }] },
-        { "module": "3: Strings, Preprocessor, and TDD", "days": [{ "day": 9, "title": "C-Strings Under the Hood" }, { "day": 10, "title": "TDD in C" }, { "day": 11, "title": "Preprocessor & Variadics" }] },
-        { "module": "4: Custom Data Types and Packing", "days": [{ "day": 12, "title": "Structs, Enums, Typedef" }, { "day": 13, "title": "Alignment & Padding" }, { "day": 14, "title": "Unions & Endianness" }] },
-        { "module": "5: Advanced Data Structures", "days": [{ "day": 15, "title": "Linked Lists" }, { "day": 16, "title": "Stacks, Queues, Rings" }, { "day": 17, "title": "Binary Trees & BSTs" }, { "day": 18, "title": "Hash Tables" }] },
-        { "module": "6: Dynamic Memory & Callbacks", "days": [{ "day": 19, "title": "The Heap & Tracking" }, { "day": 20, "title": "Function Pointers" }, { "day": 21, "title": "Jumps & Exit Behaviors" }] },
-        { "module": "7: File I/O, POSIX, and Systems", "days": [{ "day": 22, "title": "I/O Streams & Binary" }, { "day": 23, "title": "Syscalls, ioctl, mmap" }, { "day": 24, "title": "Process Control & Daemons" }, { "day": 25, "title": "Signals & Interruption" }] },
-        { "module": "8: Build Systems and Cross-Compilation", "days": [{ "day": 26, "title": "Make & Modern CMake" }, { "day": 27, "title": "ELF, Dynamic Linkers, GOT" }, { "day": 28, "title": "Cross-Compilation" }] },
-        { "module": "9: Concurrency and IPC", "days": [{ "day": 29, "title": "Pthreads & Reentrancy" }, { "day": 30, "title": "Mutexes & Semaphores" }, { "day": 31, "title": "Inter-Process Comm (IPC)" }] },
-        { "module": "10: Secure Coding and Elite Contexts", "days": [{ "day": 32, "title": "GDB & Sanitizers" }, { "day": 33, "title": "Fuzz Testing (AFL++)" }, { "day": 34, "title": "Bare-Metal & Inline ASM" }, { "day": 35, "title": "MISRA C & Static Analysis" }] },
-        { "module": "11: Architecture, SIMD, and FFI", "days": [{ "day": 36, "title": "CPU Caches & SIMD" }, { "day": 37, "title": "Atomics & Lock-Free" }, { "day": 38, "title": "Profiling & eBPF" }, { "day": 39, "title": "FFI with Python" }] },
-        { "module": "12: C23 and Capstone Implementation", "days": [{ "day": 40, "title": "Embracing C23 Features" }, { "day": 41, "title": "TCP vs UDP Sockets" }, { "day": 42, "title": "High-Performance I/O (epoll)" }, { "day": 43, "title": "Parsing & Arena Allocators" }, { "day": 44, "title": "Thread Pools & Load Testing" }, { "day": 45, "title": "Review & Deployment" }] }
-    ]
-};
-
-const TOTAL_DAYS = 45;
+let curriculumData = null;
+let TOTAL_DAYS = 45;
 let currentTopics = [];
 let scrollObserver = null;
 let completedDays = JSON.parse(localStorage.getItem('systems_completed') || '[]');
@@ -40,6 +24,8 @@ if (currentLayoutIdx === -1) currentLayoutIdx = 0;
 const ICONS = {
     'menu': '<line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line>',
     'chevron-left': '<polyline points="15 18 9 12 15 6"></polyline>',
+    'chevron-down': '<polyline points="6 9 12 15 18 9"></polyline>',
+    'chevron-up': '<polyline points="18 15 12 9 6 15"></polyline>',
     'moon': '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>',
     'sun': '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>',
     'check-circle': '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>',
@@ -51,21 +37,83 @@ const ICONS = {
 
 function getIcon(name) { return `<svg class="icon" viewBox="0 0 24 24">${ICONS[name] || ''}</svg>`; }
 
-function initLMS() {
+function injectDynamicStyles() {
+    const style = document.createElement('style');
+    style.textContent = `
+        .module-title { display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
+        .mod-toggle-icon { display: flex; align-items: center; opacity: 0.6; transition: opacity 0.2s; }
+        .module-title:hover .mod-toggle-icon { opacity: 1; }
+        .module-items { transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out; overflow: hidden; }
+        .module-items.collapsed { display: none; }
+        .day-footer { margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border-light); margin-bottom: 2rem; }
+        .day-nav-buttons { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+        .day-nav-buttons button { padding: 0.75rem 1.5rem; background: var(--bg-hover); border: 1px solid var(--border-light); color: var(--text-primary); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; font-family: var(--font-mono); font-size: 0.9rem; transition: all 0.2s; }
+        .day-nav-buttons button:hover:not(:disabled) { border-color: var(--accent); background: var(--bg-card); }
+        .day-nav-buttons button.completed { background: rgba(16, 185, 129, 0.1); border-color: var(--success-border); color: var(--success-border); }
+        .day-nav-buttons button:disabled { opacity: 0.3; cursor: not-allowed; }
+    `;
+    document.head.appendChild(style);
+}
+
+async function initLMS() {
     if (window.innerWidth < 768) {
         document.body.classList.add('sidebar-collapsed');
     }
 
     applyPreferences();
     injectSettingsUI();
+    injectDynamicStyles();
 
+    const target = document.getElementById('render-target');
+    
+    // Fetch external curriculum.json
+    try {
+        const res = await fetch(`curriculum.json?v=${APP_VERSION}`);
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        curriculumData = await res.json();
+        TOTAL_DAYS = curriculumData.total_days || 45;
+    } catch (e) {
+        console.error("Payload Pipeline Error:", e);
+        target.innerHTML = `<div class="hero-section">
+            <h2 style="color:var(--danger-border)">System Fault</h2>
+            <p style="font-family:var(--font-mono); color:var(--text-secondary);">Failed to parse curriculum.json. Ensure you are running this via a local server (e.g., Live Server or python -m http.server).</p>
+        </div>`;
+        return;
+    }
+
+    buildSidebar();
+    document.querySelectorAll('[data-icon]').forEach(el => { el.innerHTML = getIcon(el.getAttribute('data-icon')); });
+    updateProgressUI();
+    renderLandingPage();
+}
+
+function buildSidebar() {
     const nav = document.getElementById('nav-container');
     if (!nav) return;
+    nav.innerHTML = ''; 
 
     curriculumData.modules.forEach((mod) => {
         const group = document.createElement('div');
         group.className = 'module-group';
-        group.innerHTML = `<div class="module-title"><span>${mod.module}</span></div>`;
+        
+        // Collapsible Title
+        const titleDiv = document.createElement('div');
+        titleDiv.className = 'module-title';
+        titleDiv.innerHTML = `<span>${mod.module || mod.title}</span> <span class="mod-toggle-icon">${getIcon('chevron-up')}</span>`;
+        
+        const itemsContainer = document.createElement('div');
+        itemsContainer.className = 'module-items'; // default expanded
+        
+        // Toggle Logic
+        titleDiv.onclick = () => {
+            itemsContainer.classList.toggle('collapsed');
+            const iconSpan = titleDiv.querySelector('.mod-toggle-icon');
+            if (itemsContainer.classList.contains('collapsed')) {
+                iconSpan.innerHTML = getIcon('chevron-down');
+            } else {
+                iconSpan.innerHTML = getIcon('chevron-up');
+            }
+        };
 
         mod.days.forEach(day => {
             const item = document.createElement('a');
@@ -78,15 +126,41 @@ function initLMS() {
                 loadDay(day.day);
                 if (window.innerWidth < 768) document.body.classList.add('sidebar-collapsed');
             };
-            group.appendChild(item);
+            itemsContainer.appendChild(item);
         });
+        
+        group.appendChild(titleDiv);
+        group.appendChild(itemsContainer);
         nav.appendChild(group);
     });
-
-    document.querySelectorAll('[data-icon]').forEach(el => { el.innerHTML = getIcon(el.getAttribute('data-icon')); });
-    updateProgressUI();
-    renderLandingPage();
 }
+
+window.toggleCompletion = function(dayNumber) {
+    const idx = completedDays.indexOf(dayNumber);
+    if (idx === -1) {
+        completedDays.push(dayNumber); // Mark as complete
+    } else {
+        completedDays.splice(idx, 1); // Unmark
+    }
+    localStorage.setItem('systems_completed', JSON.stringify(completedDays));
+    
+    // Update sidebar UI
+    const navItem = document.getElementById(`nav-day-${dayNumber}`);
+    if (navItem) {
+        if (idx === -1) navItem.classList.add('completed');
+        else navItem.classList.remove('completed');
+    }
+    
+    // Update active button UI
+    const btn = document.getElementById('mark-complete-btn');
+    if (btn) {
+        const isCompleted = idx === -1;
+        btn.className = isCompleted ? 'completed' : '';
+        btn.innerHTML = isCompleted ? 'Completed ' + getIcon('check-circle') : 'Mark as Complete';
+    }
+    
+    updateProgressUI();
+};
 
 // ============================================================================
 // Settings, Theme & Layout Engine
@@ -177,18 +251,68 @@ function updateProgressUI() {
     document.getElementById('progress-val').innerText = `${pct}%`;
 }
 
-function renderLandingPage() {
+window.renderLandingPage = function() {
     const target = document.getElementById('render-target');
     const stepper = document.getElementById('stepper-mount');
-    if (stepper) stepper.innerHTML = '';
-    target.innerHTML = `
-        <div class="hero-section animate-in" style="text-align:center; margin-top:10vh;">
-            <div style="color:var(--accent); font-family:var(--font-mono); margin-bottom:1rem;">> ROOT ACCESS GRANTED</div>
+    if (stepper) stepper.innerHTML = ''; // Clear top stepper on landing page
+
+    // 1. Build the Hero Section
+    let html = `
+        <div class="hero-section animate-in" style="text-align:center; margin-top:5vh;">
+            <div class="hero-badge">> ROOT ACCESS GRANTED</div>
             <h1>Ultimate Systems & Embedded Expert</h1>
-            <p style="color:var(--text-secondary); max-width:500px; margin:0 auto;">Initiating compilation sequence. Select a module from the sidebar to begin.</p>
+            <p>Initiating compilation sequence. Select a module below to begin.</p>
         </div>
+        <div class="curriculum-grid animate-in" style="animation-delay: 0.1s;">
     `;
-}
+
+    // Fail-safe if data hasn't loaded
+    if (!curriculumData || !curriculumData.modules) {
+        target.innerHTML = html + `</div>`;
+        return;
+    }
+
+    // 2. Loop through the Curriculum and build the Cards
+    curriculumData.modules.forEach(mod => {
+        // Check if every day in this module is completed
+        const allDaysCompleted = mod.days.every(d => completedDays.includes(d.day));
+        const cardClass = allDaysCompleted ? 'curriculum-card completed' : 'curriculum-card';
+        
+        let daysHtml = '';
+        mod.days.forEach(day => {
+            const isCompleted = completedDays.includes(day.day);
+            const liClass = isCompleted ? 'completed' : '';
+            const icon = isCompleted ? getIcon('check-circle') : getIcon('file');
+            
+            // Truncate long titles for the dashboard view
+            const shortTitle = day.title.split(',')[0]; 
+            
+            daysHtml += `
+                <li class="${liClass}" onclick="loadDay(${day.day})">
+                    <span>Day ${day.day}: ${shortTitle}</span>
+                    <span style="display:flex; align-items:center; opacity: ${isCompleted ? '1' : '0.4'};">${icon}</span>
+                </li>
+            `;
+        });
+
+        html += `
+            <div class="${cardClass}">
+                <h3>
+                    <span>${mod.module || mod.title}</span> 
+                    ${allDaysCompleted ? `<span style="color:var(--success-border);">${getIcon('check-circle')}</span>` : ''}
+                </h3>
+                <ul>${daysHtml}</ul>
+            </div>
+        `;
+    });
+
+    html += `</div>`;
+    target.innerHTML = html;
+    
+    // 3. Clean up sidebar UI state (remove active highlights)
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    if (window.innerWidth < 768) document.body.classList.remove('sidebar-collapsed');
+};
 
 async function loadDay(dayNumber) {
     const target = document.getElementById('render-target');
@@ -203,6 +327,40 @@ async function loadDay(dayNumber) {
 
         currentTopics = data.topics.map(t => buildTopicNode(t));
         renderContinuousTopics(data.topics, target, stepperMount);
+
+        // --- Build Footer Navigation ---
+        let flatDays = [];
+        curriculumData.modules.forEach(m => m.days.forEach(d => flatDays.push(d.day)));
+        const currentIndex = flatDays.indexOf(dayNumber);
+        const prevDay = currentIndex > 0 ? flatDays[currentIndex - 1] : null;
+        const nextDay = currentIndex < flatDays.length - 1 ? flatDays[currentIndex + 1] : null;
+
+        const isCompleted = completedDays.includes(dayNumber);
+
+        const footer = document.createElement('div');
+        footer.className = 'day-footer';
+        footer.innerHTML = `
+            <div class="day-nav-buttons">
+                <button onclick="${prevDay ? `loadDay(${prevDay})` : ''}" ${!prevDay ? 'disabled' : ''}>
+                    ${getIcon('chevron-left')} Prev Day
+                </button>
+                
+                <button id="mark-complete-btn" class="${isCompleted ? 'completed' : ''}" onclick="toggleCompletion(${dayNumber})">
+                    ${isCompleted ? 'Completed ' + getIcon('check-circle') : 'Mark as Complete'}
+                </button>
+                
+                <button onclick="${nextDay ? `loadDay(${nextDay})` : ''}" ${!nextDay ? 'disabled' : ''}>
+                    Next Day <span style="transform:rotate(180deg); display:inline-block;">${getIcon('chevron-left')}</span>
+                </button>
+            </div>
+        `;
+        document.getElementById('topic-container').appendChild(footer);
+
+        // Highlight Sidebar cleanly
+        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+        const navItem = document.getElementById(`nav-day-${dayNumber}`);
+        if (navItem) navItem.classList.add('active');
+
     } catch (e) {
         console.error("Payload Pipeline Error:", e);
         target.innerHTML = `<div class="hero-section">
@@ -465,7 +623,7 @@ window.retakeQuiz = function(blockId) {
     // Reset layout
     const finalDiv = document.getElementById(`${blockId}-final`);
     finalDiv.style.display = 'none';
-    finalDiv.className = 'quiz-final-results'; // Strip pass/fail colors
+    finalDiv.className = 'quiz-final-results'; 
     
     const timer = document.getElementById(`${blockId}-timer`);
     timer.style.display = 'none';
@@ -474,7 +632,6 @@ window.retakeQuiz = function(blockId) {
     document.getElementById(`${blockId}-score-text`).innerText = `0 / ${total} Completed`;
     document.getElementById(`${blockId}-start-overlay`).style.display = 'block';
     
-    // Shrink out of focus mode
     closeQuiz(blockId);
 }
 

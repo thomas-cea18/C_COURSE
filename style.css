@@ -182,18 +182,28 @@ svg.icon { width: 18px; height: 18px; stroke: currentColor; stroke-width: 2; str
 .disable-animations .step-node.active { animation: none; }
 
 /* ==========================================================================
-   Main Content Layout (Responsive)
+   Main Content Layout (Responsive Best Practices)
    ========================================================================== */
 #render-target { 
-    width: 100%; max-width: 1600px; margin: 0 auto; padding: 3rem 4% 10rem 4%; 
-    transition: max-width 0.3s ease;
+    width: 100%; 
+    /* STANDARD: 1200px provides optimal ~90 character line-lengths */
+    max-width: 1200px; 
+    margin: 0 auto; 
+    padding: 3rem 4% 10rem 4%; 
+    transition: max-width 0.3s ease, font-size 0.3s ease, line-height 0.3s ease;
 }
-@media (min-width: 1600px) { #render-target { max-width: 95%; } }
 
-[data-layout="compact"] { font-size: 0.9rem; }
-[data-layout="compact"] h1 { font-size: 1.8rem; }
-[data-layout="compact"] h2 { font-size: 1.2rem; margin: 1.5rem 0 1rem 0; }
-[data-layout="focus"] #render-target { max-width: 700px; font-size: 1.1rem; }
+/* COMPACT: Wider screen, smaller text, tighter vertical spacing */
+[data-layout="compact"] #render-target { max-width: 1400px; font-size: 0.9rem; line-height: 1.5; }
+[data-layout="compact"] h1 { font-size: 2rem; margin-bottom: 0.5rem; }
+[data-layout="compact"] h2 { font-size: 1.3rem; margin-top: 1.5rem; margin-bottom: 0.75rem; }
+[data-layout="compact"] .visual-container, [data-layout="compact"] .code-block { margin: 1rem 0; }
+[data-layout="compact"] .visual-container { padding: 1rem; }
+
+/* FOCUS: Narrow column, larger text, optimal for deep reading */
+[data-layout="focus"] #render-target { max-width: 800px; font-size: 1.1rem; line-height: 1.8; }
+[data-layout="focus"] h1 { font-size: 2.8rem; }
+[data-layout="focus"] p { margin-bottom: 1.5rem; }
 
 .topic-content { margin-bottom: 4rem; }
 h1 { font-size: 2.5rem; margin-bottom: 1rem; letter-spacing: -0.02em; line-height: 1.2; color: var(--text-primary); font-weight: 700; }
@@ -417,11 +427,38 @@ body.quiz-active, #main-content.quiz-active {
 .pref-close { width: 100%; padding: 12px; margin-top: 1rem; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
 
 /* ==========================================================================
-   Mermaid.js Diagram Overrides (Pure SVG Mode - Light & Dark)
+   Mermaid.js & SVG Diagram Overrides (Size Constraints)
    ========================================================================== */
-.visual-container { background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 8px; padding: 2rem; margin: 2rem 0; overflow: hidden; display: flex; justify-content: center;}
-.mermaid { text-align: center; width: 100%; margin: 0 auto; }
-.mermaid svg { width: 100% !important; max-width: 100% !important; height: auto !important; font-family: var(--font-mono) !important; }
+.visual-container { 
+    background: var(--bg-card); border: 1px solid var(--border-light); 
+    border-radius: 8px; padding: 2rem; margin: 2rem 0; 
+    overflow-x: auto; /* Allow horizontal scrolling on tiny screens */
+    display: flex; flex-direction: column; align-items: center; 
+}
+.visual-caption {
+    margin-top: 1rem; font-size: 0.85rem; color: var(--text-secondary);
+    text-align: center; font-style: italic;
+}
+
+.svg-wrapper, .mermaid {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+/* THE FIX: Cap max sizes so they don't stretch into oblivion */
+.svg-wrapper svg, .mermaid svg { 
+    width: 100% !important; 
+    max-width: 800px !important;  /* Never grow wider than 800px */
+    max-height: 450px !important; /* Never grow taller than 450px */
+    height: auto !important; 
+    font-family: var(--font-mono) !important; 
+}
+
+/* Ensure diagrams don't exceed the column width in Focus mode */
+[data-layout="focus"] .svg-wrapper svg, [data-layout="focus"] .mermaid svg {
+    max-width: 100% !important;
+}
 
 .mermaid .node rect, .mermaid .node circle, .mermaid .node polygon { fill: var(--bg-app) !important; stroke: var(--accent) !important; stroke-width: 2px !important; }
 .mermaid .node text, .mermaid .node tspan { fill: var(--text-primary) !important; color: var(--text-primary) !important; font-size: 16px !important; font-weight: 600 !important; }
