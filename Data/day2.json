@@ -1,0 +1,602 @@
+{
+  "day": 2,
+  "module": "1: Professional Environment and Core Fundamentals",
+  "topics": [
+    {
+      "header_hub": {
+        "title": "Branching Architecture (if, switch)",
+        "category": "Control Flow",
+        "complexity": "Intermediate",
+        "standard": "C89/C99/C11",
+        "read_time": 25,
+        "prerequisites": ["day-1-topic-2", "day-1-topic-3"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day2-t1-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day2-t1-txt-strategic-problem",
+          "content": "<p>A CPU executing instructions sequentially is essentially a fancy calculator. For software to make decisions, the hardware must be able to branch—jumping to different memory addresses based on conditions. At the C level, we abstract these hardware jumps using <code>if/else</code> and <code>switch</code> statements. However, in high-performance systems, unpredictable branching destroys the CPU pipeline, stalling execution. Elite systems engineers must structure their logical branches not just for readability, but to appease the silicon's Branch Predictor.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day2-t1-sec-api",
+          "title": "API Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day2-t1-api-main",
+          "signature": "<span class=\"syntax-kw\">switch</span> (expression) { <span class=\"syntax-kw\">case</span> constant: ... <span class=\"syntax-kw\">break</span>; <span class=\"syntax-kw\">default</span>: ... }",
+          "description": "Evaluates an integer expression and transfers control to the matching case label.",
+          "parameters": [
+            { "name": "expression", "type": "int / char / enum", "description": "The value being evaluated. Cannot be a float, string, or struct." },
+            { "name": "constant", "type": "Compile-time constant", "description": "The target value. Variables are strictly prohibited here." }
+          ],
+          "returns": { "type": "void", "description": "Executes the matching block. Falls through to the next case unless broken." },
+          "complexity": "O(1) if optimized to a jump table. O(N) if optimized to a sequential if/else cascade.",
+          "exceptions": "No exceptions. Unmatched values without a default case do nothing."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day2-t1-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day2-t1-txt-mechanics",
+          "content": "<p>When compiling an <code>if/else</code> chain, the compiler generates sequential <code>cmp</code> (compare) and <code>je/jne</code> (jump if equal/not equal) instructions. For a <code>switch</code> statement with contiguous values (e.g., 0, 1, 2, 3), modern compilers generate a <strong>Jump Table</strong>. Instead of performing N comparisons, it calculates the memory offset <code>Base_Address + (Value * 8)</code> and performs a single, instantaneous O(1) jump directly to the correct code block.</p>"
+        },
+        {
+          "type": "mermaid_diagram",
+          "block_id": "day2-t1-mermaid-pipeline",
+          "syntax": "graph TD\n    A[Evaluate Switch Var: '2'] --> B{Compiler Optimization}\n    B -->|Sparse Values e.g. 10, 999| C[Sequential Compare: O N]\n    B -->|Contiguous Values e.g. 1, 2, 3| D[Jump Table: O 1]\n    D --> E[Instruction Pointer = Table Base + Var*Offset]\n    E --> F[Direct Execution of Case 2]\n    classDef file fill:#18181b,stroke:#3b82f6,stroke-width:2px,color:#f4f4f5;\n    class A,B,C,D,E,F file;"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day2-t1-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day2-t1-cb-if",
+          "language": "c",
+          "header": "Optimized Branching with __builtin_expect",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;stdbool.h&gt;\n\n// GCC/Clang intrinsic to hint the Branch Predictor\n#define likely(x)   __builtin_expect(!!(x), 1)\n#define unlikely(x) __builtin_expect(!!(x), 0)\n\nvoid process_network_packet(bool is_corrupt) {\n    // Instructs the compiler to push the error handling code far away \n    // so the 'hot path' (normal execution) stays in the L1 CPU cache.\n    if (unlikely(is_corrupt)) {\n        printf(\"Packet dropped.\\n\");\n        return;\n    }\n    printf(\"Packet processed.\\n\");\n}"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day2-t1-cb-switch",
+          "language": "c",
+          "header": "Contiguous Switch (Jump Table Target)",
+          "code": "#include &lt;stdio.h&gt;\n\ntypedef enum { STATE_INIT, STATE_RUN, STATE_STOP, STATE_FAULT } SysState;\n\nvoid handle_state(SysState state) {\n    // Values are 0,1,2,3 - compiler will generate an O(1) Jump Table\n    switch (state) {\n        case STATE_INIT:\n            printf(\"Booting...\\n\");\n            break;\n        case STATE_RUN:\n            printf(\"Running...\\n\");\n            break;\n        case STATE_STOP:\n            printf(\"Halted.\\n\");\n            break;\n        case STATE_FAULT:\n            // Intentional fallthrough to default\n        default:\n            printf(\"Emergency Shutdown!\\n\");\n            break;\n    }\n}"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day2-t1-cb-duff",
+          "language": "c",
+          "header": "Duff's Device (Extreme Switch Fallthrough)",
+          "code": "// A notorious historical C optimization utilizing switch fallthrough \n// to unroll a loop. Valid C syntax, but highly discouraged today.\nvoid copy_bytes(char *to, const char *from, int count) {\n    int n = (count + 7) / 8;\n    switch (count % 8) {\n        case 0: do { *to++ = *from++;\n        case 7:      *to++ = *from++;\n        case 6:      *to++ = *from++;\n        case 5:      *to++ = *from++;\n        case 4:      *to++ = *from++;\n        case 3:      *to++ = *from++;\n        case 2:      *to++ = *from++;\n        case 1:      *to++ = *from++;\n                } while (--n > 0);\n    }\n}"
+        },
+        {
+          "type": "callout",
+          "block_id": "day2-t1-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Always Brace:</strong> Even for single-line <code>if</code> statements, always use curly braces <code>{}</code> to prevent catastrophic bugs (like the Apple 'goto fail' SSL vulnerability) when someone adds a second line later.</li><li><strong>Mandatory Default:</strong> Every <code>switch</code> statement MUST have a <code>default:</code> case, even if you believe all enum values are covered. Memory corruption can flip bits and inject invalid enum states.</li><li><strong>Document Fallthroughs:</strong> If you intentionally omit a <code>break;</code> in a switch, you MUST explicitly document it (e.g., <code>/* fallthrough */</code> or C23's <code>[[fallthrough]]</code> attribute) to silence static analyzers.</li><li><strong>Yoda Conditions:</strong> Consider placing constants on the left side of equality checks (<code>if (5 == my_var)</code>). If you accidentally type <code>=</code> instead of <code>==</code>, the compiler throws a hard error instead of silently assigning the value.</li><li><strong>Boolean Explicit Check:</strong> Never write <code>if (ptr == NULL)</code> or <code>if (is_valid == true)</code>. Rely on intrinsic truthiness: <code>if (!ptr)</code> and <code>if (is_valid)</code> to avoid redundancy and type coercion edge cases.</li></ul>"
+        },
+        {
+          "type": "callout",
+          "block_id": "day2-t1-callout-antipatterns",
+          "variant": "danger",
+          "color": "var(--danger-border)",
+          "title": "Fatal Anti-Patterns",
+          "content": "<ul><li><strong>Assignment in Conditionals:</strong> Writing <code>if (x = 5)</code> instead of <code>if (x == 5)</code>. This assigns 5 to x, evaluates to true (since 5 != 0), and executes the block, completely destroying your application logic.</li><li><strong>Dangling Else:</strong> Nesting multiple <code>if</code> statements without braces. The compiler pairs an <code>else</code> with the closest preceding <code>if</code>, which may visually contradict the indentation and fool human reviewers.</li><li><strong>Floating Point Equality:</strong> Writing <code>if (float_val == 1.0f)</code>. Due to IEEE 754 precision errors, floats rarely equal exact integers perfectly. You must check if the difference is less than a tiny epsilon value.</li><li><strong>Sparse Switch Cases:</strong> Using a switch statement for values like <code>10</code>, <code>5000</code>, and <code>999999</code>. The compiler cannot build a jump table and resorts to an inefficient binary tree or slow linear comparison block.</li><li><strong>Switching on Strings:</strong> C does not support switching on strings. Attempting to use pointers in a switch (<code>switch(\"CMD\")</code>) will compare memory addresses, not the string content. Use <code>strcmp</code> in an <code>if/else</code>.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day2-t1-sec-challenges",
+          "title": "Industrial Challenges"
+        },
+        {
+          "type": "text",
+          "block_id": "day2-t1-txt-challenges",
+          "content": "<ul><li><strong>Branch Predictor Thrashing:</strong> In High-Frequency Trading, an <code>if</code> statement inside a tight loop processing random packet data will constantly mispredict. When the CPU guesses wrong, it must flush its entire 15-stage pipeline, incurring a massive ~20-cycle penalty. Branchless programming (using math to make decisions) is often required.</li><li><strong>Static Analysis False Positives:</strong> Tools like SonarQube violently reject intentional <code>switch</code> fallthroughs or deep nested <code>if</code> statements (Cyclomatic Complexity), forcing engineers to refactor mathematically perfect code to satisfy linting rules.</li><li><strong>Side-Channel Attacks:</strong> Vulnerabilities like Spectre exploit CPU branch prediction. The CPU speculatively executes an <code>if</code> branch it shouldn't have access to, and even when it reverts the action, it leaves traces of secure data in the L1 cache.</li><li><strong>MISRA Constraints:</strong> In automotive/aerospace C, rules explicitly forbid code structures like `if (a) if (b) foo(); else bar();` due to ambiguity.</li><li><strong>Dead Code Elimination:</strong> If an <code>if</code> condition relies on a macro that evaluates to false at compile time, the compiler silently deletes the entire block. This is great for performance, but terrible if a developer expected that code to be reachable in debug builds.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day2-t1-sec-silicon",
+          "title": "The Silicon Bridge"
+        },
+        {
+          "type": "text",
+          "block_id": "day2-t1-txt-silicon",
+          "content": "<p>When the CPU evaluates an <code>if (a &gt; b)</code> statement, it physically subtracts <code>b</code> from <code>a</code> using the Arithmetic Logic Unit (ALU). It throws away the math result but updates a special hardware register called the <strong>EFLAGS</strong> register (specifically the Zero and Sign flags). The very next instruction, <code>jle</code> (Jump if Less or Equal), looks at the EFLAGS register to decide whether to advance the Instruction Pointer to the next line or jump to the <code>else</code> block.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day2-t1-cb-assembly",
+          "language": "nasm",
+          "header": "Assembly Verification (x86-64 conditional jump)",
+          "code": "; C Code: if (a == 5) { do_work(); }\n; Assuming 'a' is in register edi\n    cmp     edi, 5       ; Compare 'a' with 5. Sets EFLAGS.\n    jne     .L2          ; Jump Not Equal: If 'a' != 5, jump to label .L2 (skip the block)\n    call    do_work      ; If we didn't jump, execute the block\n.L2:\n    ; Code continues..."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day2-t1-sec-qa",
+          "title": "Mastery Q&A"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day2-t1-qa-mastery",
+          "items": [
+            { "question": "Why does missing a `break` in a switch cause fallthrough?", "answer": "Because a `switch` is essentially an organized `goto` mechanism. The case labels are just jump targets. Once the CPU jumps to `case 1`, it will execute every instruction below it sequentially until it hits a physical `break` (jump out) instruction or the end of the block." },
+            { "question": "Is `switch` always faster than `if/else` chains?", "answer": "Not always. If the case values are sparse (e.g., 10, 500, 9999), the compiler cannot generate an efficient jump table and will convert the `switch` into a binary search tree or a sequential `if/else` chain under the hood." },
+            { "question": "What happens if I declare a variable directly inside a switch case?", "answer": "You will get a compiler error or scope bypass warning. If you need local variables specific to a case, you must wrap the case logic in explicit curly braces `case 1: { int x = 5; ... }` to create a new lexical scope." },
+            { "question": "How do `__builtin_expect` (likely/unlikely) macros improve performance?", "answer": "They instruct the compiler to arrange the assembly so the 'likely' branch follows the CPU's default sequential path. This prevents the instruction cache from having to load disparate memory addresses for the standard execution flow." },
+            { "question": "Why shouldn't I check floating-point equality with `==`?", "answer": "0.1 + 0.2 in floating point math actually evaluates to 0.30000000000000004 due to base-2 fraction approximations. `if (result == 0.3)` will evaluate to false. You must use `if (fabs(result - 0.3) < EPSILON)`." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day2-t1-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day2-t1-quiz-mastery",
+          "time_limit_seconds": 375,
+          "questions": [
+            {
+              "question": "What is the primary architectural advantage of a `switch` statement over a long `if/else if` chain when dealing with contiguous integer values?",
+              "options": [
+                { "id": "t1-q1-a", "text": "It requires less stack memory to execute.", "is_correct": false, "explanation": "Control flow statements do not inherently consume stack memory." },
+                { "id": "t1-q1-b", "text": "The compiler can optimize it into a jump table, executing in O(1) time regardless of how many cases exist.", "is_correct": true, "explanation": "A jump table allows the CPU to calculate the exact execution address using simple pointer math, bypassing sequential comparisons entirely." },
+                { "id": "t1-q1-c", "text": "It allows string comparisons via standard library integration.", "is_correct": false, "explanation": "C does not support string evaluation in switch statements." },
+                { "id": "t1-q1-d", "text": "It automatically prevents buffer overflows.", "is_correct": false, "explanation": "Control flow has no bearing on memory safety." }
+              ]
+            },
+            {
+              "question": "Analyze this code: `int x = 0; if (x = 5) { x++; }`. What is the value of `x` after execution?",
+              "options": [
+                { "id": "t1-q2-a", "text": "0", "is_correct": false, "explanation": "The condition assigns 5 to x." },
+                { "id": "t1-q2-b", "text": "1", "is_correct": false, "explanation": "The assignment evaluates to 5, not a boolean increment." },
+                { "id": "t1-q2-c", "text": "5", "is_correct": false, "explanation": "The block evaluates to true and executes the increment." },
+                { "id": "t1-q2-d", "text": "6", "is_correct": true, "explanation": "The expression `x = 5` sets `x` to 5. The result of that expression is 5 (which is non-zero, hence true). The block executes, incrementing `x` to 6." }
+              ]
+            },
+            {
+              "question": "Why is the Apple 'goto fail' SSL bug often cited when discussing `if` statements?",
+              "options": [
+                { "id": "t1-q3-a", "text": "It demonstrated that goto statements bypass if conditions.", "is_correct": false, "explanation": "The bug was caused by indentation, not goto bypassing logic." },
+                { "id": "t1-q3-b", "text": "It showed the danger of omitting curly braces `{}` around single-line `if` statements, allowing duplicated lines to execute unconditionally.", "is_correct": true, "explanation": "A duplicated `goto fail;` line was added without braces. The first was guarded by the `if`, but the second executed unconditionally, bypassing SSL verification." },
+                { "id": "t1-q3-c", "text": "It proved that switch statements are safer than if statements.", "is_correct": false, "explanation": "Switch statements have their own dangers (fallthrough)." },
+                { "id": "t1-q3-d", "text": "It highlighted branch predictor failure in the iPhone kernel.", "is_correct": false, "explanation": "It was a logical syntax bug, not a hardware prediction bug." }
+              ]
+            },
+            {
+              "question": "If you omit a `break;` at the end of a `case` block in a `switch` statement, what happens?",
+              "options": [
+                { "id": "t1-q4-a", "text": "The compiler throws a hard syntax error.", "is_correct": false, "explanation": "Fallthrough is perfectly valid C syntax." },
+                { "id": "t1-q4-b", "text": "The program exits the switch immediately.", "is_correct": false, "explanation": "That only happens if a break is present." },
+                { "id": "t1-q4-c", "text": "Execution 'falls through', sequentially executing the code in the next case block regardless of its label.", "is_correct": true, "explanation": "Switch cases are just memory labels. The CPU executes sequentially downward until a break instruction forces a jump out of the block." },
+                { "id": "t1-q4-d", "text": "The program crashes with a segmentation fault.", "is_correct": false, "explanation": "Control flow does not cause memory access violations directly." }
+              ]
+            },
+            {
+              "question": "In extreme high-performance computing, why do engineers try to avoid `if` statements inside tight loops?",
+              "options": [
+                { "id": "t1-q5-a", "text": "They consume too much RAM stack space.", "is_correct": false, "explanation": "If statements do not allocate stack memory." },
+                { "id": "t1-q5-b", "text": "They prevent the use of multi-threading.", "is_correct": false, "explanation": "Threads can execute branching logic perfectly fine." },
+                { "id": "t1-q5-c", "text": "They cause Branch Predictor mispredictions, forcing the CPU to flush its pipeline and waste processing cycles.", "is_correct": true, "explanation": "If the CPU guesses the branch incorrectly, it must discard all speculatively executed work and restart the pipeline, costing 15-20 wasted clock cycles per misprediction." },
+                { "id": "t1-q5-d", "text": "The GCC compiler refuses to optimize loops containing branches.", "is_correct": false, "explanation": "GCC aggressively optimizes branched loops, but hardware misprediction remains a physical limitation." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Looping Constructs and Loop Unrolling",
+        "category": "Control Flow",
+        "complexity": "Intermediate",
+        "standard": "C89/C99",
+        "read_time": 25,
+        "prerequisites": ["day-1-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day2-t2-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day2-t2-txt-strategic-problem",
+          "content": "<p>Computers excel at repetitive tasks. C provides three core looping mechanisms: <code>for</code>, <code>while</code>, and <code>do-while</code>. At a high level, they seem interchangeable, but architecturally, they dictate whether an execution block is entry-controlled (checked before running) or exit-controlled (guaranteed to run at least once). Understanding how loops interface with memory bounds, CPU caches, and compiler optimizations (like loop unrolling and auto-vectorization) separates novice programmers from systems experts.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day2-t2-sec-api",
+          "title": "API Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day2-t2-api-main",
+          "signature": "<span class=\"syntax-kw\">for</span> (init_clause; cond_expression; iteration_expression) { ... }",
+          "description": "Executes a block of code repeatedly until the condition expression evaluates to zero (false).",
+          "parameters": [
+            { "name": "init_clause", "type": "Expression / Declaration", "description": "Executed exactly once before the loop begins. (Declarations here require C99)." },
+            { "name": "cond_expression", "type": "Boolean evaluation", "description": "Evaluated before every iteration. If missing, implies an infinite loop." },
+            { "name": "iteration_expression", "type": "Expression", "description": "Executed at the end of every loop iteration (usually an increment/decrement)." }
+          ],
+          "returns": { "type": "void", "description": "Does not return a value." },
+          "complexity": "O(N) operations, where N is the number of iterations.",
+          "exceptions": "None natively. Risk of infinite looping if conditions never reach 0."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day2-t2-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day2-t2-txt-mechanics",
+          "content": "<p>A loop is compiled into a simple block of Assembly code followed by a <strong>backward jump</strong>. The compiler places a label at the start of the block. At the end of the block, it evaluates the condition and issues a <code>jle</code> (Jump if Less/Equal) back to the top label. If the condition is false, execution simply falls through to the next sequential instruction.</p>"
+        },
+        {
+          "type": "mermaid_diagram",
+          "block_id": "day2-t2-mermaid-loops",
+          "syntax": "graph TD\n    A[while cond] -->|True| B[Execute Block]\n    B --> C[Jump Back to Top]\n    C --> A\n    A -->|False| D[Fallthrough]\n    \n    E[do block] --> F[Execute Block]\n    F --> G[Evaluate cond]\n    G -->|True| H[Jump Back to Top]\n    H --> E\n    G -->|False| I[Fallthrough]\n    classDef file fill:#18181b,stroke:#3b82f6,stroke-width:2px,color:#f4f4f5;\n    class A,B,C,D,E,F,G,H,I file;"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day2-t2-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day2-t2-cb-for",
+          "language": "c",
+          "header": "Standard Array Traversal (C99 style)",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;stdint.h&gt;\n\nvoid clear_buffer(uint8_t *buffer, size_t length) {\n    // Declaring the iterator inside the loop requires C99.\n    // Using size_t guarantees the iterator can hold the maximum possible array size.\n    for (size_t i = 0; i < length; i++) {\n        buffer[i] = 0;\n    }\n}"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day2-t2-cb-while",
+          "language": "c",
+          "header": "While Loop: Hardware Polling",
+          "code": "#include &lt;stdbool.h&gt;\n\n// Simulate a memory-mapped hardware register\nvolatile bool hardware_ready = false;\n\nvoid wait_for_hardware() {\n    // Entry-controlled: Blocks execution until the hardware flips the flag.\n    // The 'volatile' keyword prevents the compiler from optimizing this into an infinite loop.\n    while (!hardware_ready) {\n        // Burn CPU cycles (Busy-Waiting)\n    }\n}"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day2-t2-cb-dowhile",
+          "language": "c",
+          "header": "The do-while(0) Macro Idiom",
+          "code": "// Why use do-while(0) for a macro? It creates a safe block that requires \n// a terminating semicolon, allowing it to behave exactly like a real function call \n// when used inside if/else statements without braces.\n#define SAFE_MACRO(x) do { \\\n    init_system(); \\\n    process(x); \\\n} while(0)\n\nvoid test() {\n    if (1)\n        SAFE_MACRO(5); // The semicolon here belongs to the while(0), keeping syntax legal.\n    else\n        printf(\"Skipped.\\n\");\n}"
+        },
+        {
+          "type": "callout",
+          "block_id": "day2-t2-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Size Type Enforcement:</strong> Always use <code>size_t</code> for array iterations, never <code>int</code>. On 64-bit systems, <code>int</code> overflows at 2.1 billion, but memory buffers can easily hold more items than that, causing catastrophic infinite loops or bounds failures.</li><li><strong>Hoist Loop Invariants:</strong> Move complex mathematical calculations out of the loop header. E.g., use <code>for(i=0; i &lt; calc_max(); i++)</code> only if `calc_max` changes; otherwise, store it: <code>size_t max = calc_max(); for(i=0; i &lt; max; i++)</code>.</li><li><strong>Safe Macro Wrappers:</strong> Multi-line C macros MUST be wrapped in <code>do { ... } while(0)</code> to ensure they expand safely when injected into un-braced <code>if/else</code> chains.</li><li><strong>Initialize Explicitly:</strong> Never assume array memory is zeroed. Always loop through or use <code>memset</code>.</li><li><strong>Minimize Internal Branching:</strong> Putting <code>if</code> statements inside heavy <code>for</code> loops destroys performance. Filter conditions *outside* the loop or use math to skip operations.</li></ul>"
+        },
+        {
+          "type": "callout",
+          "block_id": "day2-t2-callout-antipatterns",
+          "variant": "danger",
+          "color": "var(--danger-border)",
+          "title": "Fatal Anti-Patterns",
+          "content": "<ul><li><strong>Modifying the Iterator:</strong> Manually changing the `i` loop variable inside the body of a `for` loop. This makes the logic impossible to follow and defeats compiler optimization.</li><li><strong>Floating Point Iterators:</strong> Using a `float` as a loop counter (`for(float f=0; f != 1.0; f+=0.1)`). Precision errors guarantee this will become an infinite loop.</li><li><strong>Off-By-One Errors:</strong> Writing <code>for (i = 0; i &lt;= length; i++)</code> instead of <code>&lt;</code>. This writes one element past the end of the array, causing silent memory corruption.</li><li><strong>Infinite Blocking:</strong> Using an empty `while(flag)` loop without a timeout timeout counter in embedded systems. If the hardware breaks, the entire OS locks up permanently.</li><li><strong>Ignoring Cache Lines:</strong> Iterating through a multi-dimensional array column-by-column instead of row-by-row. This defeats the CPU cache prefetcher and tanks performance.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day2-t2-sec-challenges",
+          "title": "Industrial Challenges"
+        },
+        {
+          "type": "text",
+          "block_id": "day2-t2-txt-challenges",
+          "content": "<ul><li><strong>Loop Unrolling Bloat:</strong> Compilers try to unroll loops (e.g., executing the body 4 times per iteration to reduce backwards jump overhead). This speeds up execution but heavily inflates the binary size, which can be fatal on microcontrollers with 32KB of flash memory.</li><li><strong>Vectorization Failure:</strong> If iteration `i` depends on the result of `i-1` (loop-carried dependency), the compiler cannot auto-vectorize the loop into parallel SIMD instructions.</li><li><strong>Compiler Deletion:</strong> If a `while` loop runs to delay execution but doesn't modify anything, GCC/Clang will deem it 'useless' and completely delete it during optimization. You must use the `volatile` keyword or `__asm__(\"\")` to force the compiler to keep it.</li><li><strong>Watchdog Timer Resets:</strong> In Real-Time Operating Systems (RTOS), long-running `for` loops will trigger the hardware Watchdog Timer (which assumes the system crashed) and violently reboot the processor unless manually 'pet' inside the loop.</li><li><strong>MISRA Loop Constraints:</strong> Safety-critical standards prohibit modifying the loop counter anywhere except the loop increment block, and strictly forbid multiple exit points.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day2-t2-sec-silicon",
+          "title": "The Silicon Bridge"
+        },
+        {
+          "type": "text",
+          "block_id": "day2-t2-txt-silicon",
+          "content": "<p>When executing a contiguous <code>for</code> loop traversing an array, the CPU hardware prefetcher notices the linear memory access pattern. Long before the software requests the next <code>buffer[i]</code>, the CPU autonomously fetches the next 64 bytes of RAM into the ultra-fast L1 cache. This is why contiguous array loops in C are astronomically faster than iterating through linked lists.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day2-t2-cb-assembly",
+          "language": "nasm",
+          "header": "Assembly Verification (Loop Unrolling via Compiler)",
+          "code": "; Instead of jumping 100 times, the compiler unrolls the loop \n; to process 4 items per jump, reducing branch overhead by 75%.\n.L2:\n    add     DWORD PTR [rax], 1\n    add     DWORD PTR [rax+4], 1\n    add     DWORD PTR [rax+8], 1\n    add     DWORD PTR [rax+12], 1\n    add     rax, 16\n    cmp     rax, rcx\n    jne     .L2"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day2-t2-sec-qa",
+          "title": "Mastery Q&A"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day2-t2-qa-mastery",
+          "items": [
+            { "question": "What is the physical difference between a `while` and a `for` loop?", "answer": "At the hardware assembly level, there is absolutely zero difference. They both compile down to the exact same compare-and-backward-jump instructions. `for` is just syntactic sugar to keep initialization and increments scoped cleanly." },
+            { "question": "Why is `do-while(0)` the industry standard for wrapping multi-line macros?", "answer": "If you wrap a macro in `{...}`, using it like `if(x) MACRO(); else...` breaks because the semicolon after `MACRO()` ends the `if` block, leaving a syntax-error dangling `else`. `do-while(0)` requires a terminating semicolon, making it safely mimic a standard C function call." },
+            { "question": "Can I declare variables inside a `while` condition?", "answer": "No. Unlike C++, C does not allow variable declarations directly inside `while(int x = 5)` conditions. You must declare the variable before the loop or use a `for` loop (C99+)." },
+            { "question": "What does an empty `for(;;)` do?", "answer": "It is an infinite loop. It behaves identically to `while(1)`. In many compilers, `for(;;)` is preferred because it generates slightly fewer assembly instructions than evaluating a literal `1`." },
+            { "question": "Why did my loop counter suddenly wrap around to a negative number?", "answer": "You used a signed integer (like `int` or `short`) and exceeded its maximum value (e.g., 2,147,483,647 for a 32-bit int). Integer overflow in C is Undefined Behavior, but practically, it wraps around to the lowest negative number, violently breaking array logic." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day2-t2-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day2-t2-quiz-mastery",
+          "time_limit_seconds": 375,
+          "questions": [
+            {
+              "question": "Which of the following loops is guaranteed to execute its block at least once, regardless of the initial condition?",
+              "options": [
+                { "id": "t2-q1-a", "text": "for(;;)", "is_correct": false, "explanation": "While infinite, it is still an entry-controlled syntax concept." },
+                { "id": "t2-q1-b", "text": "while()", "is_correct": false, "explanation": "while is entry-controlled. If the condition is false immediately, it never executes." },
+                { "id": "t2-q1-c", "text": "do-while()", "is_correct": true, "explanation": "The do-while loop evaluates the condition at the end (exit-controlled), ensuring the block processes at least one time." },
+                { "id": "t2-q1-d", "text": "goto loop", "is_correct": false, "explanation": "goto is an unconditional jump, not a loop construct." }
+              ]
+            },
+            {
+              "question": "Why is it highly recommended to use `size_t` instead of `int` when iterating over massive arrays?",
+              "options": [
+                { "id": "t2-q2-a", "text": "size_t compiles to faster assembly instructions.", "is_correct": false, "explanation": "It compiles to standard 64-bit register math, same as an int64_t." },
+                { "id": "t2-q2-b", "text": "int is signed and can overflow at 2.1 billion, whereas size_t is unsigned and mathematically guaranteed to hold the maximum possible size of any object in memory.", "is_correct": true, "explanation": "If a buffer is larger than 2GB, an 'int' iterator will overflow into negative numbers, causing a catastrophic memory violation." },
+                { "id": "t2-q2-c", "text": "size_t automatically prevents out-of-bounds access.", "is_correct": false, "explanation": "No type in C prevents out-of-bounds access automatically." },
+                { "id": "t2-q2-d", "text": "int is deprecated in C99.", "is_correct": false, "explanation": "int is standard and will never be deprecated." }
+              ]
+            },
+            {
+              "question": "An embedded engineer writes: `while(!sensor_ready);` to wait for hardware. The program compiles, but in release mode, the software locks up infinitely even when the sensor is ready. Why?",
+              "options": [
+                { "id": "t2-q3-a", "text": "The while loop exceeded the stack limit.", "is_correct": false, "explanation": "Empty while loops do not consume stack memory." },
+                { "id": "t2-q3-b", "text": "The compiler noticed the variable wasn't changed inside the loop, assumed it would never change, and optimized it into an inescapable infinite loop.", "is_correct": true, "explanation": "Without the 'volatile' keyword, the optimizer assumes single-threaded, pure-software execution. It caches 'sensor_ready' in a register and never re-reads RAM." },
+                { "id": "t2-q3-c", "text": "The hardware lacked a pull-up resistor.", "is_correct": false, "explanation": "While possible in hardware, this is a classic compiler optimization software bug." },
+                { "id": "t2-q3-d", "text": "The syntax is illegal C.", "is_correct": false, "explanation": "An empty while loop with a semicolon is perfectly legal." }
+              ]
+            },
+            {
+              "question": "What is 'loop unrolling'?",
+              "options": [
+                { "id": "t2-q4-a", "text": "Converting a for loop into a recursive function.", "is_correct": false, "explanation": "That is the opposite of unrolling." },
+                { "id": "t2-q4-b", "text": "An optimization where the compiler duplicates the loop body multiple times per iteration to reduce the CPU penalty of branching and jumping backwards.", "is_correct": true, "explanation": "By executing 4 operations per jump instead of 1, the CPU spends less time evaluating the loop condition and more time doing math." },
+                { "id": "t2-q4-c", "text": "A security vulnerability causing infinite loops.", "is_correct": false, "explanation": "Unrolling is an optimization, not a vulnerability." },
+                { "id": "t2-q4-d", "text": "Replacing a while loop with a goto statement.", "is_correct": false, "explanation": "Loops compile to backwards jumps anyway." }
+              ]
+            },
+            {
+              "question": "What happens if you omit the condition in a `for` loop, like `for(int i=0; ; i++)`?",
+              "options": [
+                { "id": "t2-q5-a", "text": "The compiler throws a syntax error.", "is_correct": false, "explanation": "The condition field is optional." },
+                { "id": "t2-q5-b", "text": "The loop executes zero times.", "is_correct": false, "explanation": "An omitted condition implies true, not false." },
+                { "id": "t2-q5-c", "text": "It defaults to executing exactly once.", "is_correct": false, "explanation": "It doesn't default to a count." },
+                { "id": "t2-q5-d", "text": "The compiler implies the condition is 'true', resulting in an infinite loop (unless broken manually).", "is_correct": true, "explanation": "An empty condition field in a C for loop is evaluated as a non-zero constant, making it loop forever." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Unconditional Jumps and State Exits",
+        "category": "Control Flow",
+        "complexity": "Intermediate",
+        "standard": "C89/C99",
+        "read_time": 20,
+        "prerequisites": ["day-1-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day2-t3-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day2-t3-txt-strategic-problem",
+          "content": "<p>Deeply nested logic (the \"Arrow Anti-Pattern\") makes code unreadable and error-prone. Sometimes, an algorithm needs to instantly abort a loop, skip an iteration, or bail out of an entire function without cascading through a massive pyramid of <code>if</code> blocks. C provides unconditional jump mechanisms—<code>break</code>, <code>continue</code>, <code>return</code>, and the notorious <code>goto</code>—to snap the execution pointer instantly to a new location. Used correctly, they create elegant Guard Clauses; used poorly, they create impossible-to-debug Spaghetti Code.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day2-t3-sec-api",
+          "title": "API Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day2-t3-api-main",
+          "signature": "<span class=\"syntax-kw\">break</span>; | <span class=\"syntax-kw\">continue</span>; | <span class=\"syntax-kw\">return</span> [val]; | <span class=\"syntax-kw\">goto</span> label;",
+          "description": "Mechanisms that unconditionally alter the CPU Instruction Pointer to jump out of standard sequential logic.",
+          "parameters": [
+            { "name": "break", "type": "Keyword", "description": "Immediately exits the closest enclosing loop or switch block." },
+            { "name": "continue", "type": "Keyword", "description": "Skips the rest of the loop body and jumps instantly to the next iteration evaluation." },
+            { "name": "return", "type": "Keyword", "description": "Pops the current stack frame and returns execution (and optionally a value) to the calling function." },
+            { "name": "goto", "type": "Keyword", "description": "Jumps instantly to a named label within the SAME function." }
+          ],
+          "returns": { "type": "N/A", "description": "These are control structures, not functions." },
+          "complexity": "O(1) absolute jump.",
+          "exceptions": "None natively."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day2-t3-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day2-t3-txt-mechanics",
+          "content": "<p>All of these keywords compile down to an unconditional <code>jmp</code> (jump) or <code>ret</code> (return) instruction. When a <code>return</code> occurs, the CPU does heavy lifting: it places the return value in a specific register (like <code>rax</code>), restores the previous Base Pointer (<code>rbp</code>), and pops the Instruction Pointer (<code>rip</code>) off the Call Stack, physically returning execution to the exact moment the function was called.</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day2-t3-svg-mechanics",
+          "caption": "Guard Clauses flattening logic by returning early.",
+          "alt_text": "A comparison showing deeply nested if statements versus a flat structure using early returns.",
+          "svg_code": "<svg viewBox='0 0 600 200' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='200' fill='var(--bg-card)'/><g transform='translate(20, 20)'><text x='130' y='20' fill='var(--danger-border)' font-family='monospace' font-size='12' text-anchor='middle'>Anti-Pattern: Nested Arrow</text><rect x='10' y='40' width='240' height='20' fill='var(--bg-hover)'/><text x='15' y='55' fill='var(--text-secondary)' font-family='monospace' font-size='10'>if (ptr != NULL) {</text><rect x='30' y='60' width='220' height='20' fill='var(--bg-hover)'/><text x='35' y='75' fill='var(--text-secondary)' font-family='monospace' font-size='10'>if (size > 0) {</text><rect x='50' y='80' width='200' height='20' fill='rgba(16, 185, 129, 0.1)'/><text x='55' y='95' fill='var(--success-border)' font-family='monospace' font-size='10'>process(ptr);</text><text x='35' y='115' fill='var(--text-secondary)' font-family='monospace' font-size='10'>}</text><text x='15' y='135' fill='var(--text-secondary)' font-family='monospace' font-size='10'>}</text></g><g transform='translate(330, 20)'><text x='120' y='20' fill='var(--success-border)' font-family='monospace' font-size='12' text-anchor='middle'>Pro-Pattern: Guard Clauses</text><rect x='10' y='40' width='240' height='20' fill='rgba(239, 68, 68, 0.1)'/><text x='15' y='55' fill='var(--danger-border)' font-family='monospace' font-size='10'>if (ptr == NULL) return;</text><rect x='10' y='65' width='240' height='20' fill='rgba(239, 68, 68, 0.1)'/><text x='15' y='80' fill='var(--danger-border)' font-family='monospace' font-size='10'>if (size == 0) return;</text><rect x='10' y='90' width='240' height='20' fill='rgba(16, 185, 129, 0.1)'/><text x='15' y='105' fill='var(--success-border)' font-family='monospace' font-size='10'>process(ptr); // Flat logic!</text></g></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day2-t3-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day2-t3-cb-guard",
+          "language": "c",
+          "header": "Early Return (Guard Clauses)",
+          "code": "int read_file(const char* filepath) {\n    // Guard Clause 1: Trap bad input instantly\n    if (!filepath) {\n        return -1; \n    }\n    \n    FILE *file = fopen(filepath, \"r\");\n    // Guard Clause 2: Trap system failure\n    if (!file) {\n        return -2;\n    }\n\n    // By the time we reach here, we are guaranteed safe.\n    // No nested pyramids required.\n    process(file);\n    fclose(file);\n    return 0;\n}"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day2-t3-cb-continue",
+          "language": "c",
+          "header": "Filtering via Continue",
+          "code": "void parse_packets(Packet *packets, size_t count) {\n    for (size_t i = 0; i < count; i++) {\n        // Skip dropped packets and immediately jump back to 'i++'\n        if (packets[i].status == DROPPED) {\n            continue;\n        }\n        \n        // The heavy lifting logic only runs on valid packets\n        decode_payload(&packets[i]);\n        dispatch(&packets[i]);\n    }\n}"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day2-t3-cb-goto",
+          "language": "c",
+          "header": "The Linux Kernel 'goto cleanup' Pattern",
+          "code": "int initialize_device() {\n    void *mem1 = malloc(1024);\n    if (!mem1) return -1;\n\n    void *mem2 = malloc(2048);\n    if (!mem2) {\n        // If mem2 fails, we MUST free mem1 before returning.\n        // We use goto to jump to the cleanup block.\n        goto err_mem1;\n    }\n\n    if (init_hardware(mem1, mem2) < 0) {\n        goto err_hw;\n    }\n\n    return 0; // Success\n\n    // Single point of cleanup. Fallthrough architecture.\nerr_hw:\n    free(mem2);\nerr_mem1:\n    free(mem1);\n    return -1;\n}"
+        },
+        {
+          "type": "callout",
+          "block_id": "day2-t3-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Guard Clauses Over Nesting:</strong> Bail out of a function as early as possible. If an input is bad, <code>return</code> immediately. This keeps the primary 'happy path' logic flush against the left margin.</li><li><strong>Goto for Cleanup Only:</strong> The only acceptable use of <code>goto</code> in modern C is forward-jumping to a sequential teardown block (the Linux Kernel cleanup pattern) to prevent resource leaks.</li><li><strong>One Scope Break:</strong> <code>break</code> only escapes the <em>innermost</em> loop. To break out of nested loops (a matrix search), you must either use a flag, extract the loops to a function and use <code>return</code>, or use a highly controlled <code>goto</code>.</li><li><strong>Document Fallthrough Exits:</strong> If a function has multiple return points, ensure any locks (mutexes) acquired are explicitly released before every single <code>return</code>.</li><li><strong>Continue Caution:</strong> Be extremely careful using <code>continue</code> inside a <code>while</code> loop. Unlike a <code>for</code> loop (which automatically hits the incrementer), skipping to the top of a <code>while</code> loop without manually incrementing the counter causes an infinite loop.</li></ul>"
+        },
+        {
+          "type": "callout",
+          "block_id": "day2-t3-callout-antipatterns",
+          "variant": "danger",
+          "color": "var(--danger-border)",
+          "title": "Fatal Anti-Patterns",
+          "content": "<ul><li><strong>Spaghetti Goto:</strong> Jumping backward in a function using <code>goto</code>, or jumping into the middle of another scope block. This destroys the compiler's ability to optimize and destroys human readability.</li><li><strong>Returning Stack Pointers:</strong> Using <code>return &local_var;</code>. The stack frame is destroyed the moment the function returns; the pointer will point to garbage memory.</li><li><strong>Unreachable Code:</strong> Placing logic after a <code>return</code> or <code>break</code>. The compiler will never execute it.</li><li><strong>Dangling Resources:</strong> Using an early <code>return</code> inside a function that previously <code>malloc</code>'d memory, forgetting to <code>free()</code> the memory on the exit path.</li><li><strong>Deep Breaks:</strong> Assuming a single <code>break;</code> will exit a <code>for</code> loop nested inside a <code>while</code> loop. It only breaks the <code>for</code> loop.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day2-t3-sec-challenges",
+          "title": "Industrial Challenges"
+        },
+        {
+          "type": "text",
+          "block_id": "day2-t3-txt-challenges",
+          "content": "<ul><li><strong>Resource Leaks (No RAII):</strong> Unlike C++, C does not have destructors that automatically clean up resources when a function returns. Every single early <code>return</code> branch must be manually audited to ensure memory is freed, files are closed, and mutexes are unlocked.</li><li><strong>MISRA Single-Exit Clash:</strong> Extreme safety standards (MISRA C) forbid multiple <code>return</code> statements, demanding a single exit point at the bottom of the function. This forces engineers to use heavily nested <code>if</code> blocks, pitting clean code principles against safety regulations.</li><li><strong>Static Analysis Path Explosion:</strong> Every <code>break</code>, <code>continue</code>, and <code>return</code> doubles the number of execution paths a static analyzer must traverse, potentially causing tools to time out or crash on massive functions.</li><li><strong>Stack Smashing:</strong> If a buffer overflow overwrites the stored Return Address on the call stack, executing the <code>return</code> keyword will jump the CPU into malicious attacker code.</li><li><strong>Unwinding State:</strong> Bailing out of an algorithm halfway through means global state or hardware registers might be left in an inconsistent 'half-configured' state.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day2-t3-sec-silicon",
+          "title": "The Silicon Bridge"
+        },
+        {
+          "type": "text",
+          "block_id": "day2-t3-txt-silicon",
+          "content": "<p>When a C function finishes, the compiler emits a <code>ret</code> assembly instruction. The CPU reads the value sitting at the very top of the Stack (which is the memory address of the code that called the function), pops it into the Instruction Pointer (<code>RIP/EIP</code>), and immediately jumps execution back to the caller. This physical pop is why returning a pointer to a local stack variable is fatal—that stack memory is instantly unreserved and will be overwritten by the next function call.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day2-t3-cb-assembly",
+          "language": "nasm",
+          "header": "Assembly Verification (The Return Sequence)",
+          "code": "my_function:\n    ; ... function logic ...\n    mov eax, 0      ; Set the return value (0) in the standard return register (eax)\n    leave           ; Restore the caller's Base Pointer (rbp)\n    ret             ; Pop the Instruction Pointer (rip) from the stack and JUMP"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day2-t3-sec-qa",
+          "title": "Mastery Q&A"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day2-t3-qa-mastery",
+          "items": [
+            { "question": "Why does Dijkstra's famous 'Go To Statement Considered Harmful' essay not apply to the Linux Kernel cleanup pattern?", "answer": "Dijkstra was arguing against unconstrained, unstructured jumps (jumping everywhere arbitrarily). Forward-jumping to a unified error-handling block acts functionally identically to C++ exceptions/destructors, maintaining strict structural control and preventing massive code duplication." },
+            { "question": "How do I break out of a loop nested 3 levels deep?", "answer": "You cannot use a simple `break;`. You must either set a boolean flag checked by all outer loops, extract the loops into a separate function and use `return`, or use `goto escape_label;`. The `goto` is often the cleanest option in C." },
+            { "question": "What is the difference between `return` and `exit()`?", "answer": "`return` just pops the current function off the call stack and goes back to the caller (returning from `main` closes the program). `exit()` is a system call that instantly kills the entire process, violently halting all execution no matter how deep in the call stack it is invoked." },
+            { "question": "Can I use `continue` inside a `switch` statement?", "answer": "No. `continue` only applies to loops (`for`, `while`, `do-while`). If a `switch` is inside a loop, calling `continue` from inside a case will skip the rest of the loop iteration, not just the switch." },
+            { "question": "If I `return` from `main()`, what does the OS do with the value?", "answer": "The value returned from `main` is passed back to the Linux shell as the program's 'exit status'. Returning `0` tells the OS the program succeeded. Returning non-zero (e.g., `1`) tells the OS a failure occurred, allowing bash scripts to chain logic based on the crash." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day2-t3-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day2-t3-quiz-mastery",
+          "time_limit_seconds": 375,
+          "questions": [
+            {
+              "question": "What is the primary danger of using `continue` inside a standard `while` loop?",
+              "options": [
+                { "id": "t3-q1-a", "text": "It breaks the compiler's Abstract Syntax Tree.", "is_correct": false, "explanation": "It is perfectly valid syntax." },
+                { "id": "t3-q1-b", "text": "It skips the loop's manual incrementer at the bottom of the block, jumping straight back to the condition and causing an infinite loop.", "is_correct": true, "explanation": "Unlike a `for` loop, a `while` loop doesn't automatically execute an increment step. If `continue` skips the line where `i++` lives, `i` never changes, and the loop blocks forever." },
+                { "id": "t3-q1-c", "text": "It instantly returns from the function.", "is_correct": false, "explanation": "That is the return keyword." },
+                { "id": "t3-q1-d", "text": "It forces the CPU to flush the L1 cache.", "is_correct": false, "explanation": "It's just an internal jump; it doesn't flush the entire cache." }
+              ]
+            },
+            {
+              "question": "In C, what is the widely accepted, 'pro-pattern' use case for the `goto` keyword?",
+              "options": [
+                { "id": "t3-q2-a", "text": "Replacing `while` loops to speed up execution.", "is_correct": false, "explanation": "Compilers generate the same jumps anyway." },
+                { "id": "t3-q2-b", "text": "Jumping backward to retry failed operations.", "is_correct": false, "explanation": "Backward gotos create unreadable spaghetti code." },
+                { "id": "t3-q2-c", "text": "Forward-jumping to a unified teardown/cleanup block at the end of a function to free memory and unlock mutexes before returning.", "is_correct": true, "explanation": "This pattern prevents resource leaks and duplicates, acting as a manual version of C++ RAII destructors." },
+                { "id": "t3-q2-d", "text": "Jumping between different functions.", "is_correct": false, "explanation": "goto cannot jump across function boundaries (that requires setjmp/longjmp)." }
+              ]
+            },
+            {
+              "question": "If you are 3 levels deep in nested `for` loops, how does the `break;` keyword behave?",
+              "options": [
+                { "id": "t3-q3-a", "text": "It escapes all 3 loops instantly.", "is_correct": false, "explanation": "Break is not scope-aware across multiple boundaries." },
+                { "id": "t3-q3-b", "text": "It escapes only the innermost loop where the keyword was invoked.", "is_correct": true, "explanation": "The break keyword compiles to a jump that lands exactly one instruction past the current enclosing loop block." },
+                { "id": "t3-q3-c", "text": "It halts the entire program.", "is_correct": false, "explanation": "That is the exit() function." },
+                { "id": "t3-q3-d", "text": "It triggers a compiler warning.", "is_correct": false, "explanation": "It is valid syntax, but logically limited." }
+              ]
+            },
+            {
+              "question": "Why is it considered a fatal anti-pattern to return a pointer to a local variable (e.g., `int* func() { int x = 5; return &x; }`)?",
+              "options": [
+                { "id": "t3-q4-a", "text": "The compiler cannot cast integers to pointers.", "is_correct": false, "explanation": "It is a pointer to an int, the cast is fine." },
+                { "id": "t3-q4-b", "text": "Local variables are stored in the stack frame. The `return` instruction destroys that frame, leaving the caller with a pointer to garbage memory.", "is_correct": true, "explanation": "The memory where `x` lived is instantly unreserved. The very next function call will overwrite that memory space, corrupting any data the caller tries to read." },
+                { "id": "t3-q4-c", "text": "It violates the MISRA C standard.", "is_correct": false, "explanation": "While it does, the primary reason is catastrophic memory corruption, not just standards." },
+                { "id": "t3-q4-d", "text": "The memory leaks because it cannot be freed.", "is_correct": false, "explanation": "Stack memory cleans itself up automatically; it's the opposite of a leak." }
+              ]
+            },
+            {
+              "question": "What physically happens at the CPU level when the `return` instruction (`ret`) executes?",
+              "options": [
+                { "id": "t3-q5-a", "text": "The CPU shuts down power to the ALU.", "is_correct": false, "explanation": "Return has nothing to do with power states." },
+                { "id": "t3-q5-b", "text": "The OS kernel intercepts the program and kills the thread.", "is_correct": false, "explanation": "Function returns are handled entirely in user-space hardware." },
+                { "id": "t3-q5-c", "text": "The CPU reads the top value off the Call Stack, loads it into the Instruction Pointer (RIP), and jumps execution back to the caller.", "is_correct": true, "explanation": "The 'Return Address' was pushed onto the stack when the function was initially called. `ret` pops it back off to resume the caller." },
+                { "id": "t3-q5-d", "text": "It clears the L1 cache to prepare for the next function.", "is_correct": false, "explanation": "Caches are managed by hardware algorithms, not return instructions." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

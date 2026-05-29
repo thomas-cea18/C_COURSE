@@ -1,0 +1,670 @@
+{
+  "day": 7,
+  "module": "2: Memory Layout, Pointers, and Arrays",
+  "topics": [
+    {
+      "header_hub": {
+        "title": "Array Mechanics and Pointer Decay",
+        "category": "Core C",
+        "complexity": "Intermediate",
+        "standard": "C89/C99",
+        "read_time": 25,
+        "prerequisites": ["day-6-topic-1", "day-6-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day7-t1-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day7-t1-txt-strategic-problem",
+          "content": "<p>In languages like Java or Python, an array (or list) is a heavy object that inherently knows its own length and physically stops you from reading past its end. In C, an array is nothing more than a raw, contiguous slab of memory. The language provides absolutely zero bounds checking. Furthermore, the moment you pass an array to a function, it instantly loses its size information and devolves into a raw pointer—a phenomenon known as <strong>Array Decay</strong>. Systems engineers must manually track and enforce memory boundaries to prevent the most devastating exploit in computer science history: the Buffer Overflow.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t1-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day7-t1-api-main",
+          "signature": "<span class=\"syntax-kw\">int</span> buffer[10] = {0};\n<span class=\"syntax-kw\">void</span> process(<span class=\"syntax-kw\">int</span> *arr, <span class=\"syntax-ty\">size_t</span> len);",
+          "description": "Declares a contiguous block of memory and demonstrates the necessity of explicit length tracking.",
+          "parameters": [
+            { "name": "buffer[10]", "type": "Static Array", "description": "Reserves exactly 40 bytes (10 * 4) on the Stack. {0} strictly zeroes the entire block." },
+            { "name": "arr", "type": "Decayed Pointer", "description": "Inside a function, int arr[] and int *arr are absolutely identical. The array size is lost." },
+            { "name": "len", "type": "size_t", "description": "The mandatory companion variable required to traverse a decayed array safely." }
+          ],
+          "returns": { "type": "N/A", "description": "Arrays cannot be returned by value." },
+          "complexity": "O(1) indexing via pointer math: address + (index * sizeof(type)).",
+          "exceptions": "Reading/writing outside [0] to [len-1] is strict Undefined Behavior."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t1-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day7-t1-txt-mechanics",
+          "content": "<p>When you write <code>buffer[3]</code>, the C compiler treats the array name <code>buffer</code> as a pointer to the 0th element. It then translates the syntax entirely into pointer arithmetic: <code>*(buffer + 3)</code>. Because of this architectural equivalence, the compiler does not know if <code>buffer + 300</code> is valid or not; it simply executes the math and accesses the silicon. Array decay happens because copying a 10,000-element array into a function's stack frame would destroy performance. Instead, C only copies the 8-byte pointer to the first element.</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day7-t1-svg-mechanics",
+          "caption": "Array Decay: How an Array devolves into a Pointer across function boundaries.",
+          "alt_text": "Visual showing an array in main() with a known size, being passed to a function where it becomes a simple 8-byte pointer.",
+          "svg_code": "<svg viewBox='0 0 600 200' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='200' fill='var(--bg-card)'/><g transform='translate(20, 20)'><rect x='0' y='0' width='240' height='160' fill='var(--bg-hover)' stroke='var(--border-light)' stroke-width='2' rx='8'/><text x='120' y='25' fill='var(--text-primary)' font-family='monospace' font-weight='bold' text-anchor='middle'>main() Scope</text><rect x='20' y='50' width='200' height='30' fill='rgba(59, 130, 246, 0.1)' stroke='var(--accent)'/><text x='120' y='70' fill='var(--accent)' font-family='monospace' font-size='12' text-anchor='middle'>int arr[5] (20 Bytes)</text><text x='120' y='110' fill='var(--text-secondary)' font-family='monospace' font-size='11' text-anchor='middle'>sizeof(arr) == 20</text></g><g transform='translate(340, 20)'><rect x='0' y='0' width='240' height='160' fill='var(--bg-hover)' stroke='var(--border-light)' stroke-width='2' rx='8'/><text x='120' y='25' fill='var(--text-primary)' font-family='monospace' font-weight='bold' text-anchor='middle'>function(int *arr) Scope</text><rect x='20' y='50' width='200' height='30' fill='rgba(239, 68, 68, 0.1)' stroke='var(--danger-border)'/><text x='120' y='70' fill='var(--danger-border)' font-family='monospace' font-size='12' text-anchor='middle'>int *arr (8 Bytes)</text><text x='120' y='110' fill='var(--text-secondary)' font-family='monospace' font-size='11' text-anchor='middle'>sizeof(arr) == 8</text></g><path d='M270 65 L330 65' stroke='var(--accent)' stroke-width='3' marker-end='url(#arrow)' stroke-dasharray='4,4'/><text x='300' y='55' fill='var(--text-secondary)' font-family='sans-serif' font-size='10' text-anchor='middle'>DECAY</text><defs><marker id='arrow' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--accent)'/></marker></defs></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t1-sec-trench-story",
+          "title": "Production Trench Story"
+        },
+        {
+          "type": "callout",
+          "block_id": "day7-t1-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage: The Heartbleed Echo",
+          "content": "<p>A proprietary VPN appliance suffered a catastrophic data breach. The device expected a network packet structured as `[Length Byte] [Data]`. An attacker sent a packet saying it contained 64 bytes of data, but only actually sent 1 byte. The C parser allocated `char buffer[64]`, read the 1 byte, and then blindly echoed `buffer[0]` through `buffer[63]` back to the user. Because C does not clear arrays automatically, and bounds checking wasn't enforced against the physical transmission size, the appliance happily echoed 63 bytes of raw, uncleared Stack memory back to the attacker. That stack memory contained the administrator's plaintext session token left over from a previous function call.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t1-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day7-t1-cb-evolutionary",
+          "language": "c",
+          "header": "Safe Array Boundaries",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;stdint.h&gt;\n\n// A macro to safely calculate array size ONLY in the scope where it was defined\n#define ARRAY_LEN(x) (sizeof(x) / sizeof((x)[0]))\n\n// We MUST accept length as a second parameter because 'arr' has decayed.\nvoid process_telemetry(uint32_t *arr, size_t length) {\n    for (size_t i = 0; i < length; i++) {\n        // Secure processing bound by the passed length\n        printf(\"Data: %u\\n\", arr[i]);\n    }\n}\n\nint main() {\n    // Initialize with {0} to prevent reading garbage stack memory\n    uint32_t sensors[5] = {0};\n    \n    sensors[0] = 1042;\n    sensors[4] = 999;\n    \n    // Pass the pointer and the strictly calculated length\n    process_telemetry(sensors, ARRAY_LEN(sensors));\n    \n    return 0;\n}"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t1-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day7-t1-txt-debug-intro",
+          "content": "<p>Analyze the following broken snippet. Find the vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day7-t1-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The Decay Trap",
+          "code": "#include &lt;stdio.h&gt;\n\nvoid clear_buffer(int data[]) {\n    // Engineer attempts to zero out the array dynamically\n    int num_elements = sizeof(data) / sizeof(data[0]);\n    \n    for (int i = 0; i < num_elements; i++) {\n        data[i] = 0;\n    }\n}\n\nint main() {\n    int secret_keys[100] = {1, 2, 3, 4, 5};\n    clear_buffer(secret_keys);\n    return 0;\n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day7-t1-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "The syntax `int data[]` in a function signature is a lie told by the C language; the compiler silently rewrites it to `int *data`. Inside `clear_buffer`, `sizeof(data)` evaluates to the size of a pointer (8 bytes on 64-bit systems). `sizeof(data[0])` is the size of an int (4 bytes). `8 / 4 = 2`. The loop will only clear the first two elements of the array. The remaining 98 elements of `secret_keys` are left untouched, leaving sensitive data exposed. Fix: You must pass `size_t length` into `clear_buffer` explicitly." }
+          ]
+        },
+        {
+          "type": "callout",
+          "block_id": "day7-t1-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>The Pointer/Length Pair:</strong> Never write a function that accepts an array pointer without immediately demanding a <code>size_t length</code> parameter next to it. They are inseparable components of secure API design.</li><li><strong>Strict Initialization:</strong> Always initialize arrays using <code>= {0}</code>. If you leave it uninitialized, you are inheriting whatever sensitive or corrupted data previously lived in that RAM location.</li><li><strong>Never Trust Array Signatures:</strong> Treat <code>void foo(int arr[100])</code> as compiler propaganda. The compiler completely ignores the <code>100</code>; it is identical to <code>int *arr</code>.</li><li><strong>Macro Confinement:</strong> Only use the <code>sizeof(arr)/sizeof(arr[0])</code> macro in the exact lexical block where the physical array <code>[]</code> was declared.</li><li><strong>Pointer Equivalence:</strong> Remember that <code>&amp;arr</code>, <code>arr</code>, and <code>&amp;arr[0]</code> all point to the exact same physical byte in memory, but they have different types. <code>arr</code> is an `int*`, while <code>&amp;arr</code> is an `int (*)[10]` (a pointer to an array of 10 ints).</li></ul>"
+        },
+        {
+          "type": "callout",
+          "block_id": "day7-t1-callout-antipatterns",
+          "variant": "danger",
+          "color": "var(--danger-border)",
+          "title": "Fatal Anti-Patterns",
+          "content": "<ul><li><strong>Out-of-Bounds Writing:</strong> Writing to <code>arr[10]</code> when the array was declared as <code>arr[10]</code>. The valid indices are 0 through 9. This off-by-one error overwrites the stack memory immediately following the array.</li><li><strong>Sizeof Decay Blindness:</strong> Using <code>sizeof(arr)</code> inside a receiving function and using that value in a `memcpy` or `memset` operation. It copies exactly 8 bytes and stops.</li><li><strong>Negative Indexing:</strong> Using a signed `int` for an array index without checking for negative values. `arr[-5]` is perfectly legal C syntax; it calculates a memory address physically backwards from the start of the array, reading arbitrary heap or stack data.</li><li><strong>Returning Local Arrays:</strong> Writing <code>int[] get_data() { int arr[5]; return arr; }</code>. The array decays to a pointer, the pointer is returned, and the stack frame is destroyed. You return a dangling pointer to dead memory.</li><li><strong>Assuming Zeroes:</strong> Believing that a global BSS array is zeroes, so a local stack array must also be zeroes. Stack memory is fundamentally dirty.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t1-sec-challenges",
+          "title": "Industrial Challenges"
+        },
+        {
+          "type": "text",
+          "block_id": "day7-t1-txt-challenges",
+          "content": "<ul><li><strong>Buffer Overflows:</strong> If user input dictates the index used to write to an array, and bounds checking is omitted, hackers will purposefully overwrite the array's boundaries until they overwrite the function's Return Instruction Pointer on the stack, hijacking the CPU execution flow entirely.</li><li><strong>Static Analysis Blindspots:</strong> Many static analysis tools struggle to track array lengths across deep function call trees, making it difficult to mathematically prove that a buffer overflow is impossible in a complex parser.</li><li><strong>Array Parameter Syntax:</strong> C99 introduced the `static` keyword in array parameters (e.g., `void func(int arr[static 10])`), which promises the compiler the pointer will never be NULL and has at least 10 elements. Few developers understand this syntax, leading to maintenance confusion.</li><li><strong>ASLR and Stack Canaries:</strong> Because of the severity of array overflows, OS kernels inject randomized \"canary\" values between arrays and the return address. If an overflow occurs, the canary is corrupted, and the program instantly commits suicide (Stack Smashing Detected).</li><li><strong>The memcpy Overlap:</strong> Copying data from one array to another using `memcpy` when their memory boundaries overlap causes severe corruption. Engineers must use the slower, safer `memmove` when dealing with overlapping array segments.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t1-sec-silicon",
+          "title": "The Silicon Bridge"
+        },
+        {
+          "type": "text",
+          "block_id": "day7-t1-txt-silicon",
+          "content": "<p>Why does C use arrays at all instead of Linked Lists? <strong>The Hardware Prefetcher.</strong> CPU caches operate on 64-byte \"Cache Lines.\" When you read <code>arr[0]</code>, the CPU doesn't just fetch 4 bytes from physical RAM; it fetches the next 60 bytes simultaneously. Because an array is strictly contiguous, <code>arr[1]</code> through <code>arr[15]</code> are already sitting in the ultra-fast L1 cache. Array traversal is the absolute fastest way to process data in modern silicon.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day7-t1-cb-assembly",
+          "language": "nasm",
+          "header": "Assembly Verification (Index Scaling)",
+          "code": "; C Code: arr[5] = 42;\n; Assume 'arr' base address is in rdi\n\n; The CPU handles the array index scaling directly in hardware.\n; It takes the base address (rdi), adds (5 * 4), and moves 42 into that exact spot.\nmov     DWORD PTR [rdi + 20], 42"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t1-sec-qa",
+          "title": "Mastery Q&A"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day7-t1-qa-mastery",
+          "items": [
+            { "question": "Why does `arr[i]` equal `i[arr]`?", "answer": "The compiler mechanically rewrites `arr[i]` into `*(arr + i)`. By the commutative property of addition, `*(i + arr)` is mathematically identical, which translates back to `i[arr]`. It proves that arrays are purely a syntactic illusion over pointer math." },
+            { "question": "What is the difference between `char str[] = \"hi\";` and `char *str = \"hi\";`?", "answer": "The first allocates an array of 3 bytes on the local Stack and copies the letters 'h', 'i', '\\0' into it. You can mutate it freely. The second allocates an 8-byte pointer on the Stack that points directly to the read-only `.rodata` segment. Mutating the second one causes a Segfault." },
+            { "question": "Is it possible to pass an array without it decaying?", "answer": "Yes, but you must pass a *pointer to an array* using exact dimensions: `void func(int (*arr_ptr)[10])`. Inside the function, `sizeof(*arr_ptr)` will correctly yield 40 bytes. However, this locks the function to accepting ONLY arrays of exactly 10 elements, destroying flexibility." },
+            { "question": "Why use `size_t` for the length parameter instead of `int`?", "answer": "`int` is signed and can hold negative numbers. If a hacker passes a negative length into a function, it bypasses `if (len < MAX_BUFFER)` checks, but when used as an index, it reaches backwards into unmapped memory. `size_t` is strictly unsigned." },
+            { "question": "How do Stack Canaries detect overflows?", "answer": "The compiler injects a randomized, secret 8-byte integer between your local array and the function's return address. Before the function returns, it checks if the canary value has changed. If an array overflowed, it would have to overwrite the canary to reach the return address. If the canary differs from the master copy, the OS kills the process." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t1-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day7-t1-quiz-mastery",
+          "time_limit_seconds": 375,
+          "questions": [
+            {
+              "question": "If you define `int arr[50];` globally, what does `sizeof(arr)` evaluate to at compile time?",
+              "options": [
+                { "id": "t1-q1-a", "text": "8 (Size of a pointer)", "is_correct": false, "explanation": "It has not decayed because it is evaluated in its defining scope." },
+                { "id": "t1-q1-b", "text": "50", "is_correct": false, "explanation": "sizeof returns bytes, not element counts." },
+                { "id": "t1-q1-c", "text": "200", "is_correct": true, "explanation": "In the scope where it is defined, the compiler knows the full AST type is an array of 50 integers. 50 * 4 bytes = 200." },
+                { "id": "t1-q1-d", "text": "Undefined", "is_correct": false, "explanation": "sizeof on a fully defined array is strictly defined." }
+              ]
+            },
+            {
+              "question": "You write a function `void hash(uint8_t buffer[256]);`. Inside the function, you write `memset(buffer, 0, sizeof(buffer));`. What is the catastrophic outcome?",
+              "options": [
+                { "id": "t1-q2-a", "text": "It zeros out 256 bytes successfully.", "is_correct": false, "explanation": "The signature `[256]` is a lie." },
+                { "id": "t1-q2-b", "text": "It zeros out 8 bytes, leaving the remaining 248 bytes filled with potentially sensitive garbage data.", "is_correct": true, "explanation": "Regardless of the `[256]` in the signature, the array decayed to a `uint8_t *`. `sizeof(uint8_t *)` is 8. `memset` stops after 8 bytes." },
+                { "id": "t1-q2-c", "text": "It triggers a Segfault.", "is_correct": false, "explanation": "It writes to valid memory, just not enough of it." },
+                { "id": "t1-q2-d", "text": "It causes a Stack Overflow.", "is_correct": false, "explanation": "It under-writes, it doesn't over-write." }
+              ]
+            },
+            {
+              "question": "What is the primary architectural mechanism that makes Buffer Overflows so dangerous in C?",
+              "options": [
+                { "id": "t1-q3-a", "text": "They alter the `.text` segment.", "is_correct": false, "explanation": "The `.text` segment is hardware-locked read-only." },
+                { "id": "t1-q3-b", "text": "They allow a user to write linearly past the end of a local array, eventually overwriting the CPU's Return Instruction Pointer pushed onto the Stack.", "is_correct": true, "explanation": "By overwriting the return address, the attacker can force the CPU to jump to a memory address of their choosing (like injected shellcode) when the function finishes." },
+                { "id": "t1-q3-c", "text": "They cause integer underflows.", "is_correct": false, "explanation": "They manipulate raw memory, not integer types directly." },
+                { "id": "t1-q3-d", "text": "They bypass Mutex locks.", "is_correct": false, "explanation": "Buffer overflows are a memory exploit, not a concurrency exploit." }
+              ]
+            },
+            {
+              "question": "Why is `size_t` the mandated type for array lengths instead of `int`?",
+              "options": [
+                { "id": "t1-q4-a", "text": "`int` is signed and can be manipulated by hackers into negative numbers to bypass bounds checks and read backwards in memory.", "is_correct": true, "explanation": "If a hacker passes `-100`, `if (-100 < 1024)` succeeds. But `arr[-100]` reaches far outside the array bounds. `size_t` is unsigned, so `-100` wraps to 18 quintillion, immediately failing the bounds check." },
+                { "id": "t1-q4-b", "text": "`size_t` consumes less memory.", "is_correct": false, "explanation": "It often consumes more (8 bytes vs 4 bytes)." },
+                { "id": "t1-q4-c", "text": "`size_t` guarantees cache alignment.", "is_correct": false, "explanation": "Types do not guarantee array alignments." },
+                { "id": "t1-q4-d", "text": "`int` causes syntax errors in C11.", "is_correct": false, "explanation": "It is valid syntax, just incredibly dangerous." }
+              ]
+            },
+            {
+              "question": "How do you correctly zero-initialize an entire array of 1000 integers upon declaration?",
+              "options": [
+                { "id": "t1-q5-a", "text": "int arr[1000] = 0;", "is_correct": false, "explanation": "You must use bracket initializer syntax." },
+                { "id": "t1-q5-b", "text": "int arr[1000] = {0};", "is_correct": true, "explanation": "The C standard guarantees that if an initializer list is provided, any elements not explicitly listed are initialized to 0. Setting the first element to 0 forces the remaining 999 to 0." },
+                { "id": "t1-q5-c", "text": "int arr[1000]; memset(arr, 0);", "is_correct": false, "explanation": "memset requires three arguments, this is a syntax error." },
+                { "id": "t1-q5-d", "text": "Arrays are 0 by default.", "is_correct": false, "explanation": "Stack arrays contain garbage by default." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Multi-Dimensional Arrays & Cache Lines",
+        "category": "Architecture",
+        "complexity": "Expert",
+        "standard": "C99",
+        "read_time": 30,
+        "prerequisites": ["day-7-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day7-t2-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day7-t2-txt-strategic-problem",
+          "content": "<p>When rendering 3D graphics, running AI tensor matrices, or processing bitmaps, engineers naturally think in 2D or 3D grids (Rows and Columns). However, physical RAM is strictly one-dimensional. C abstracts this by offering Multi-Dimensional Arrays (<code>matrix[rows][cols]</code>). But this abstraction is a dangerous trap. If you traverse a 2D matrix incorrectly, you will destroy CPU cache efficiency, causing your algorithms to run 100x slower. Furthermore, passing a 2D array to a function requires rigid dimensional contracts that confuse even senior engineers.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t2-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day7-t2-api-main",
+          "signature": "<span class=\"syntax-kw\">int</span> matrix[3][4];\nmatrix[1][2] = 5;",
+          "description": "Declares a contiguous memory block representing a 3-row, 4-column grid. C guarantees Row-Major ordering.",
+          "parameters": [
+            { "name": "[3]", "type": "Rows", "description": "The outer dimension. How many blocks of columns exist." },
+            { "name": "[4]", "type": "Columns", "description": "The inner dimension. How many contiguous elements make up a row." }
+          ],
+          "returns": { "type": "N/A", "description": "N/A" },
+          "complexity": "O(1) access. Formula: Base_Addr + (Row * COLS + Col) * sizeof(type).",
+          "exceptions": "Exceeding column bounds silently spills into the next row."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t2-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day7-t2-txt-mechanics",
+          "content": "<p>C enforces <strong>Row-Major Order</strong>. This means an entire row is laid out contiguously in memory, immediately followed by the next row. <code>matrix[0][3]</code> sits physically adjacent to <code>matrix[1][0]</code> in RAM. To find an element, the compiler multiplies your requested Row by the total number of Columns, then adds your requested Column. Because RAM is linear, a \"2D array\" in C is just a 1D array with compiler-injected multiplier math.</p>"
+        },
+        {
+          "type": "mermaid_diagram",
+          "block_id": "day7-t2-mermaid-rowmajor",
+          "syntax": "graph LR\n    A(Row 0, Col 0) --> B(Row 0, Col 1)\n    B --> C(Row 0, Col 2)\n    C -.->|Contiguous Boundary| D(Row 1, Col 0)\n    D --> E(Row 1, Col 1)\n    E --> F(Row 1, Col 2)\n    classDef r0 fill:#18181b,stroke:#3b82f6,stroke-width:2px,color:#f4f4f5;\n    classDef r1 fill:#18181b,stroke:#10b981,stroke-width:2px,color:#f4f4f5;\n    class A,B,C r0;\n    class D,E,F r1;"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t2-sec-trench-story",
+          "title": "Production Trench Story"
+        },
+        {
+          "type": "callout",
+          "block_id": "day7-t2-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage: The Matrix Stall",
+          "content": "<p>A high-frequency trading firm deployed a new machine-learning correlation matrix (8192 x 8192 floats). During backtesting, the algorithm took 45 minutes to execute instead of the projected 30 seconds. An analyst reviewed the nested <code>for</code> loops. The outer loop iterated over columns, and the inner loop iterated over rows (<code>matrix[row][col]</code>). Because C is row-major, reading column-by-column forced the CPU to jump 32,768 bytes across RAM on every single iteration. Every single read was a Cache Miss. Swapping the two <code>for</code> loops restored linear row-major access, dropping execution time to 12 seconds.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t2-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day7-t2-cb-evolutionary",
+          "language": "c",
+          "header": "Cache-Friendly Traversal vs The Anti-Pattern",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;stdint.h&gt;\n\n#define ROWS 4096\n#define COLS 4096\n\nint matrix[ROWS][COLS];\n\nvoid cache_friendly_traversal() {\n    // Row-Major: The innermost loop MUST iterate the Columns.\n    // The CPU prefetcher pulls the next 16 integers into L1 cache for free.\n    for (size_t r = 0; r < ROWS; r++) {\n        for (size_t c = 0; c < COLS; c++) {\n            matrix[r][c] = 1;\n        }\n    }\n}\n\nvoid cache_hostile_traversal() {\n    // Column-Major: The innermost loop iterates the Rows.\n    // Jumps 16,384 bytes on every step. 100% Cache Miss rate. Destroys performance.\n    for (size_t c = 0; c < COLS; c++) {\n        for (size_t r = 0; r < ROWS; r++) {\n            matrix[r][c] = 0;\n        }\n    }\n}"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t2-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day7-t2-txt-debug-intro",
+          "content": "<p>Analyze the following broken snippet. Find the vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day7-t2-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The Dynamic Grid Cast",
+          "code": "#include &lt;stdio.h&gt;\n\n// Engineer attempts to pass a 2D array dynamically using double pointers\nvoid process_grid(int **grid, size_t rows, size_t cols) {\n    for (size_t r = 0; r < rows; r++) {\n        for (size_t c = 0; c < cols; c++) {\n            grid[r][c] = 42; // CRASH\n        }\n    }\n}\n\nint main() {\n    int level_map[10][10] = {0};\n    \n    // Compiler warns: incompatible pointer type\n    process_grid((int **)level_map, 10, 10);\n    return 0;\n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day7-t2-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "A 2D array (`int[10][10]`) is NOT a pointer-to-a-pointer (`int**`). It is a single, flat, contiguous block of 100 integers. An `int**` expects an array of memory addresses that point to other disparate memory addresses. When `process_grid` executes `grid[r]`, it reads the raw integer `0` from the flat array, treats that `0` as a memory address (NULL), and tries to dereference it via `[c]`, instantly triggering a Segfault. Fix: You must specify the inner dimension in the parameter: `void process_grid(int grid[][10], size_t rows)` or cast the flat array to a 1D pointer and calculate offsets manually." }
+          ]
+        },
+        {
+          "type": "callout",
+          "block_id": "day7-t2-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Innermost Equals Contiguous:</strong> The right-most bracket in a multi-dimensional array MUST be the innermost loop in your logic to guarantee hardware cache-line hits.</li><li><strong>The Parameter Rule:</strong> When passing a 2D array to a function, you can omit the outermost dimension, but you MUST hardcode all inner dimensions: <code>void func(int arr[][COLS])</code> so the compiler knows the row-multiplier.</li><li><strong>Flat Emulation:</strong> For truly dynamic 2D matrices, allocate a 1D array on the Heap: <code>malloc(rows * cols * sizeof(int))</code> and calculate offsets manually: <code>arr[r * cols + c]</code>. This guarantees contiguity and dynamic flexibility.</li><li><strong>Sizeof Behavior:</strong> <code>sizeof(matrix)</code> returns the total bytes of the entire grid. <code>sizeof(matrix[0])</code> returns the total bytes of a single row.</li><li><strong>Initialization Syntax:</strong> <code>int m[2][2] = {0};</code> safely zeroes the entire block. You do not need nested curly braces for zeroing.</li></ul>"
+        },
+        {
+          "type": "callout",
+          "block_id": "day7-t2-callout-antipatterns",
+          "variant": "danger",
+          "color": "var(--danger-border)",
+          "title": "Fatal Anti-Patterns",
+          "content": "<ul><li><strong>Int** Confusion:</strong> Passing <code>int matrix[5][5]</code> to a function expecting <code>int **</code>. The memory topology is fundamentally incompatible.</li><li><strong>Column-Major Traversal:</strong> Iterating the outer loop over rows and the inner loop over columns. It is the #1 cause of performance degradation in C processing.</li><li><strong>Jagged Heap Arrays:</strong> Allocating an array of pointers, and then looping through to <code>malloc</code> each individual row. This fragments the Heap, destroys contiguous cache hits, and creates a massive memory leak risk if cleanup fails halfway.</li><li><strong>Out-of-Bounds Row Spillage:</strong> Relying on the fact that `matrix[0][10]` spills over into `matrix[1][0]`. While mathematically it works due to contiguity, it violates standard bounds rules and aggressive optimizers will punish it as Undefined Behavior.</li><li><strong>Hardcoding Multipliers:</strong> Manually writing <code>*(ptr + row * 10 + col)</code> instead of using a properly typed array pointer. Let the compiler do the math.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t2-sec-challenges",
+          "title": "Industrial Challenges"
+        },
+        {
+          "type": "text",
+          "block_id": "day7-t2-txt-challenges",
+          "content": "<ul><li><strong>SIMD Vectorization:</strong> Modern CPU instructions (AVX-512) can process 16 integers simultaneously. If your 2D array is fragmented across `malloc` calls (an array of pointers), the CPU cannot load 16 contiguous integers, crippling matrix multiplication performance.</li><li><strong>Image Padding (Stride):</strong> In graphics processing, a 2D image bitmap often has a 'stride' or 'pitch' that is wider than the visible pixels to maintain 4-byte alignment. Blindly treating a 100-pixel wide image as exactly 400 bytes wide per row will skew and corrupt the image buffer.</li><li><strong>Fortran/MATLAB Interop:</strong> Some legacy scientific languages use Column-Major order natively. Passing a 2D C array into a Fortran BLAS library requires physically transposing the entire matrix in RAM first.</li><li><strong>VLA Parameter Syntax:</strong> C99 allows passing dynamic dimensions like `void func(int r, int c, int arr[r][c])`. However, this syntax is highly error-prone, compilers handle it inconsistently, and Linus Torvalds banned it in the Linux Kernel.</li><li><strong>Cache Thrashing:</strong> If two different CPU threads are processing different rows of a 2D array, but those rows share the same physical 64-byte Cache Line, the CPU cores will constantly invalidate each other's cache (False Sharing), tanking threaded performance.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t2-sec-silicon",
+          "title": "The Silicon Bridge"
+        },
+        {
+          "type": "text",
+          "block_id": "day7-t2-txt-silicon",
+          "content": "<p>Why is Row-Major traversal so vital? The CPU does not fetch memory byte-by-byte. When you request the integer at <code>matrix[0][0]</code>, the CPU Memory Controller fetches a full 64-byte <strong>Cache Line</strong> from RAM into the L1 Cache. This pulls <code>matrix[0][0]</code> through <code>matrix[0][15]</code> in a single hardware transaction. If your next loop iteration requests <code>matrix[0][1]</code>, it is a Cache Hit (0 cycles). If your loop requests <code>matrix[1][0]</code> (Column-Major), it is a Cache Miss, requiring a painful 200-cycle fetch to main RAM.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day7-t2-cb-assembly",
+          "language": "nasm",
+          "header": "Assembly Verification (2D Array Multiplier)",
+          "code": "; C Code: matrix[row][col] = 5;\n; Assume COLS is hardcoded to 10 (40 bytes per row)\n\n; The CPU multiplies the row (rcx) by 40, adds the column (rdx) multiplied by 4,\n; and offsets from the base address (rdi).\nimul    rax, rcx, 40\nlea     rax, [rdi + rax]\nmov     DWORD PTR [rax + rdx*4], 5"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t2-sec-qa",
+          "title": "Mastery Q&A"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day7-t2-qa-mastery",
+          "items": [
+            { "question": "Why do I have to specify the inner dimension when passing a 2D array?", "answer": "The compiler must know how wide a row is to calculate the mathematical offset for the next row. If you just pass `int arr[][]`, the compiler doesn't know if `arr[1][0]` is 5 integers away or 500 integers away from the base pointer." },
+            { "question": "Can I use an array of pointers instead?", "answer": "Yes, `int *arr[10]` creates 10 separate pointers. You can `malloc` each one. This allows jagged arrays (rows of different lengths), but it destroys physical contiguity, ruins L1 cache efficiency, and adds a double-dereference penalty to every memory read." },
+            { "question": "What does `matrix[1]` evaluate to?", "answer": "It evaluates to the decayed base pointer of the entire 1st row. `matrix[1]` acts exactly like a 1D `int *` pointing to the start of that specific row." },
+            { "question": "What is the fastest way to zero a massive 2D array?", "answer": "Since it is strictly contiguous, treat it as a 1D array. `memset(matrix, 0, ROWS * COLS * sizeof(int));` This utilizes highly optimized SIMD hardware instructions in the C standard library." },
+            { "question": "What is Cache-Line False Sharing?", "answer": "If Thread A writes to `matrix[0][15]` and Thread B writes to `matrix[1][0]`, and those two integers fall within the same 64-byte physical hardware chunk, the CPU cores will constantly lock and invalidate that chunk across the memory bus, crippling threaded speed." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t2-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day7-t2-quiz-mastery",
+          "time_limit_seconds": 375,
+          "questions": [
+            {
+              "question": "In a 2D array defined as `int grid[5][10];`, what is the physical memory layout?",
+              "options": [
+                { "id": "t2-q1-a", "text": "It is an array of 5 pointers, each pointing to a separate 10-element block.", "is_correct": false, "explanation": "That is an array of pointers, not a 2D array." },
+                { "id": "t2-q1-b", "text": "It is a single contiguous block of 50 integers. Row 0 is laid out first, immediately followed by Row 1.", "is_correct": true, "explanation": "C strictly mandates contiguous, Row-Major order for multi-dimensional arrays." },
+                { "id": "t2-q1-c", "text": "It is a single contiguous block, but laid out Column-Major (Column 0, then Column 1).", "is_correct": false, "explanation": "Fortran uses Column-Major, C uses Row-Major." },
+                { "id": "t2-q1-d", "text": "It is allocated on the Heap dynamically.", "is_correct": false, "explanation": "It is allocated on the Stack or .bss depending on scope." }
+              ]
+            },
+            {
+              "question": "Why does traversing a large 2D matrix Column-by-Column (inner loop iterates rows) cause a massive performance penalty?",
+              "options": [
+                { "id": "t2-q2-a", "text": "It requires floating-point division.", "is_correct": false, "explanation": "It uses integer multiplication." },
+                { "id": "t2-q2-b", "text": "It forces the CPU to constantly skip across large swaths of RAM, defeating the hardware L1 Cache Prefetcher and causing constant 200-cycle Cache Misses.", "is_correct": true, "explanation": "The prefetcher pulls 64 contiguous bytes. Column traversal jumps past those 64 bytes immediately, wasting the fetch and forcing a main memory read on every iteration." },
+                { "id": "t2-q2-c", "text": "It invokes Undefined Behavior.", "is_correct": false, "explanation": "It is perfectly valid, just incredibly slow." },
+                { "id": "t2-q2-d", "text": "It triggers page faults in the MMU.", "is_correct": false, "explanation": "The pages are valid, just not cached." }
+              ]
+            },
+            {
+              "question": "Which function signature is valid for accepting `int map[5][10]`?",
+              "options": [
+                { "id": "t2-q3-a", "text": "void process(int **map)", "is_correct": false, "explanation": "A 2D array does not decay into a double pointer." },
+                { "id": "t2-q3-b", "text": "void process(int map[][])", "is_correct": false, "explanation": "The compiler cannot calculate row offsets without the inner dimension." },
+                { "id": "t2-q3-c", "text": "void process(int map[][10])", "is_correct": true, "explanation": "The outer dimension can decay to a pointer, but the inner dimension must be explicitly provided so the compiler knows to multiply by 10 to find the next row." },
+                { "id": "t2-q3-d", "text": "void process(int *map[10])", "is_correct": false, "explanation": "This specifies an array of 10 pointers." }
+              ]
+            },
+            {
+              "question": "If `int m[3][3] = { {1,2}, {3,4} };`, what is the value of `m[0][2]`?",
+              "options": [
+                { "id": "t2-q4-a", "text": "Garbage data.", "is_correct": false, "explanation": "Partial initialization zeros the rest." },
+                { "id": "t2-q4-b", "text": "3", "is_correct": false, "explanation": "3 is the start of the next row." },
+                { "id": "t2-q4-c", "text": "0", "is_correct": true, "explanation": "Any elements omitted in an initializer list are strictly guaranteed by the C standard to be initialized to zero." },
+                { "id": "t2-q4-d", "text": "Undefined Behavior.", "is_correct": false, "explanation": "Partial initialization is completely valid." }
+              ]
+            },
+            {
+              "question": "How do elite systems engineers typically allocate and pass fully dynamic 2D matrices where BOTH rows and columns are decided at runtime?",
+              "options": [
+                { "id": "t2-q5-a", "text": "They use `int **` and `malloc` every row individually.", "is_correct": false, "explanation": "This fragments the heap and ruins cache coherence." },
+                { "id": "t2-q5-b", "text": "They allocate a single flat 1D array (`malloc(r * c * sizeof(int))`), pass it as an `int*`, and calculate offsets manually (`arr[row * c + col]`).", "is_correct": true, "explanation": "This guarantees a single contiguous block of memory, perfect cache efficiency, and completely circumvents the compiler's rigid multi-dimensional array type constraints." },
+                { "id": "t2-q5-c", "text": "They use Variable Length Arrays (VLAs).", "is_correct": false, "explanation": "VLAs are highly dangerous and banned in modern secure code." },
+                { "id": "t2-q5-d", "text": "They use global variables.", "is_correct": false, "explanation": "Globals cannot be sized dynamically at runtime." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Variable Length Arrays (VLAs) & alloca",
+        "category": "Memory",
+        "complexity": "Expert",
+        "standard": "C99 (Optional in C11)",
+        "read_time": 25,
+        "prerequisites": ["day-7-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day7-t3-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day7-t3-txt-strategic-problem",
+          "content": "<p>Historically, C arrays required compile-time constant sizes (e.g., <code>int arr[10];</code>). If you didn't know the size until runtime, you had to use <code>malloc</code>, which is slow and risks memory leaks if you forget to <code>free</code> it. To fix this, C99 introduced <strong>Variable Length Arrays (VLAs)</strong>, allowing <code>int arr[n];</code> where <code>n</code> is a runtime variable. It seems like a miracle: dynamic sizing with automatic stack cleanup. But in reality, VLAs are one of the most dangerous features ever added to C. If <code>n</code> is controlled by a malicious user, the VLA instantly blows past the stack guard page, crashing the server. They are so dangerous that Linus Torvalds systematically purged every single VLA from the Linux Kernel codebase.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t3-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day7-t3-api-main",
+          "signature": "<span class=\"syntax-kw\">void</span> func(<span class=\"syntax-kw\">int</span> n) {\n    <span class=\"syntax-kw\">int</span> arr[n];\n}",
+          "description": "Allocates an array on the Stack where the size is evaluated dynamically at runtime.",
+          "parameters": [
+            { "name": "n", "type": "Integer", "description": "The runtime size evaluated to calculate the stack allocation." }
+          ],
+          "returns": { "type": "N/A", "description": "Memory is automatically freed when the function scope exits." },
+          "complexity": "O(1) allocation (stack pointer shift), but breaks compiler stack-frame optimizations.",
+          "exceptions": "If n * sizeof(type) exceeds available stack space, the hardware faults (Stack Overflow)."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t3-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day7-t3-txt-mechanics",
+          "content": "<p>Normally, a compiler knows exactly how large a function's stack frame is at compile time, generating a static <code>sub rsp, 48</code> instruction. With a VLA, the stack frame size is unknown. The compiler must generate complex assembly to evaluate <code>n</code>, check alignments, and dynamically subtract from <code>rsp</code> at runtime. Worse, it forces the compiler to rely heavily on the Base Pointer (<code>rbp</code>) to track where variables live, destroying frame-pointer omission optimizations and slowing down the entire function.</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day7-t3-svg-mechanics",
+          "caption": "Static Stack Frame vs Dynamic VLA Stack Frame.",
+          "alt_text": "Visual showing a fixed stack frame versus a flexible frame where variables shift addresses dynamically.",
+          "svg_code": "<svg viewBox='0 0 600 200' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='200' fill='var(--bg-card)'/><g transform='translate(50, 20)'><rect x='0' y='0' width='200' height='160' fill='none' stroke='var(--border-light)' stroke-width='2' rx='4'/><text x='100' y='25' fill='var(--text-primary)' font-family='monospace' font-weight='bold' text-anchor='middle'>Static Frame</text><rect x='10' y='40' width='180' height='40' fill='var(--bg-hover)'/><text x='100' y='65' fill='var(--text-secondary)' font-family='monospace' font-size='12' text-anchor='middle'>int fixed[10]</text><rect x='10' y='85' width='180' height='30' fill='rgba(16, 185, 129, 0.1)' stroke='var(--success-border)'/><text x='100' y='105' fill='var(--success-border)' font-family='monospace' font-size='12' text-anchor='middle'>int next_var</text><text x='100' y='145' fill='var(--text-secondary)' font-size='10' text-anchor='middle'>Address is Constant</text></g><g transform='translate(350, 20)'><rect x='0' y='0' width='200' height='160' fill='none' stroke='var(--border-light)' stroke-width='2' rx='4'/><text x='100' y='25' fill='var(--text-primary)' font-family='monospace' font-weight='bold' text-anchor='middle'>VLA Frame</text><rect x='10' y='40' width='180' height='60' fill='rgba(239, 68, 68, 0.1)' stroke='var(--danger-border)' stroke-dasharray='4,4'/><text x='100' y='75' fill='var(--danger-border)' font-family='monospace' font-size='12' text-anchor='middle'>int vla[n] (Dynamic)</text><rect x='10' y='105' width='180' height='30' fill='rgba(16, 185, 129, 0.1)' stroke='var(--success-border)'/><text x='100' y='125' fill='var(--success-border)' font-family='monospace' font-size='12' text-anchor='middle'>int next_var</text><text x='100' y='145' fill='var(--danger-border)' font-size='10' text-anchor='middle'>Address Shifts Unpredictably</text></g></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t3-sec-trench-story",
+          "title": "Production Trench Story"
+        },
+        {
+          "type": "callout",
+          "block_id": "day7-t3-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage: The VLA Loop Bomb",
+          "content": "<p>A networking daemon parsed incoming packet streams. The engineer wrote a <code>while</code> loop. Inside the loop, they extracted a length field from the packet header and declared <code>char payload[length];</code> to process it. Because VLAs are allocated dynamically within their scope, the compiler allocated new stack space on <em>every single loop iteration</em>, but only reclaimed the memory when the block exited. When a hacker sent a stream of 100 valid packets in a single burst, the loop allocated 100 separate VLAs consecutively, instantly breaching the stack limit and causing a hard SIGSEGV termination.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t3-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day7-t3-cb-evolutionary",
+          "language": "c",
+          "header": "VLA Fallback Strategy (The Hybrid Approach)",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;stdlib.h&gt;\n\n#define MAX_SAFE_STACK 4096\n\n// How systems engineers safely emulate VLA behavior without the risk\nvoid safe_dynamic_buffer(size_t n) {\n    // Use the fast Stack for small payloads, fall back to slow Heap for large ones\n    int stack_fallback[1024]; \n    int *buffer = NULL;\n    \n    if (n * sizeof(int) <= MAX_SAFE_STACK) {\n        buffer = stack_fallback; // Use safe, fixed stack memory\n    } else {\n        buffer = malloc(n * sizeof(int)); // Use Heap for massive data\n        if (!buffer) return; // Trap OOM\n    }\n    \n    // ... process buffer ...\n    \n    if (buffer != stack_fallback) {\n        free(buffer);\n    }\n}"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t3-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day7-t3-txt-debug-intro",
+          "content": "<p>Analyze the following broken snippet. Find the vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day7-t3-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The Negative Allocation",
+          "code": "#include &lt;stdio.h&gt;\n\nvoid parse_user_data(int user_provided_size) {\n    // DANGER: VLA with unsanitized user input\n    char vla_buffer[user_provided_size];\n    \n    vla_buffer[0] = 'A';\n    printf(\"Buffer allocated.\\n\");\n}\n\nint main() {\n    // Hacker passes a negative number\n    parse_user_data(-5);\n    return 0;\n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day7-t3-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "The compiler calculates VLA sizes using unsigned math (`size_t`). When `-5` is passed into `char vla_buffer[-5]`, the integer is implicitly cast to an unsigned `size_t`, wrapping around to roughly 18 Quintillion. The CPU attempts to subtract 18 Quintillion from the Stack Pointer (`rsp`), instantly jumping the pointer outside of mapped RAM. Writing to `vla_buffer[0]` writes to unmapped void space, triggering a fatal Segmentation Fault. Fix: Never use VLAs for untrusted sizes. If you must, strictly bound the input: `if (n <= 0 || n > 4000) return;`." }
+          ]
+        },
+        {
+          "type": "callout",
+          "block_id": "day7-t3-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Ban VLAs:</strong> Compile your codebase with <code>-Wvla</code>. If the compiler issues a warning, refactor the code to use a fixed-size stack buffer or <code>malloc</code>. C11 explicitly made VLAs an optional feature because they are so despised by security engineers.</li><li><strong>Never Trust User Input:</strong> If you ignore the ban and use a VLA, the runtime size <code>n</code> MUST be mathematically bounded against a hardcoded maximum (e.g., 4096) before the VLA is declared.</li><li><strong>Watch the Loop Scope:</strong> If you declare a VLA inside a loop, it allocates new stack memory every iteration but only frees it at the end of the <em>scope block</em> where it was defined, rapidly exhausting the stack.</li><li><strong>Sizeof is Runtime:</strong> <code>sizeof()</code> is normally evaluated at compile time. On a VLA, <code>sizeof</code> is evaluated at <em>runtime</em>, introducing hidden execution overhead.</li><li><strong>Avoid alloca():</strong> <code>alloca()</code> is a non-standard GCC extension that mimics VLAs by allocating memory on the stack via a function call. It shares all the exact same fatal vulnerabilities as VLAs. Do not use it.</li></ul>"
+        },
+        {
+          "type": "callout",
+          "block_id": "day7-t3-callout-antipatterns",
+          "variant": "danger",
+          "color": "var(--danger-border)",
+          "title": "Fatal Anti-Patterns",
+          "content": "<ul><li><strong>Unbounded Network VLAs:</strong> Reading a 32-bit `length` field from a TCP packet and immediately declaring `uint8_t buffer[length]`. A malicious packet asserts length `0xFFFFFFFF`, crashing the router instantly.</li><li><strong>Structs with VLAs:</strong> Attempting to embed a VLA inside a `struct`. It is explicitly banned by the C standard. You must use Flexible Array Members (FAMs) at the end of the struct and `malloc` the total size.</li><li><strong>Goto Past VLA:</strong> Using `goto` to jump over a VLA declaration into a block where the VLA is in scope. The VLA memory was never allocated by the CPU, so accessing it corrupts the stack.</li><li><strong>Implicit Cast Wrapping:</strong> Passing a negative `int` into a VLA size, triggering unsigned wrap-around and catastrophic stack pointer displacement.</li><li><strong>Assuming VLA Failure is Catchable:</strong> If `malloc` fails, it returns `NULL`, which you can check. If a VLA allocation fails (exceeds stack space), it does not return `NULL`. It violently kills the process. There is no software catch mechanism.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t3-sec-challenges",
+          "title": "Industrial Challenges"
+        },
+        {
+          "type": "text",
+          "block_id": "day7-t3-txt-challenges",
+          "content": "<ul><li><strong>The Linux Kernel Purge:</strong> In 2018, the Linux Kernel developers aggressively hunted down and removed over 200 instances of VLAs from the kernel source code. VLAs were causing unpredictable kernel panics and slowing down functions because they broke compiler frame optimizations.</li><li><strong>Compiler Portability:</strong> Microsoft Visual C++ (MSVC) fundamentally refused to support the C99 VLA standard for nearly two decades. Code written with VLAs simply would not compile on Windows systems, destroying cross-platform compatibility.</li><li><strong>Hidden alloca() Usage:</strong> Many legacy macros (like string duplication routines) secretly use `alloca()` under the hood. Developers unknowingly deploy VLA-like vulnerabilities without ever explicitly declaring a VLA in their source code.</li><li><strong>Thread Stack Limits:</strong> The main process stack might be 8MB, but threads spawned via `pthread_create` often default to much smaller stacks (e.g., 2MB). A VLA that works perfectly in the main thread will mysteriously crash when executed inside a worker thread.</li><li><strong>Static Analysis Chaos:</strong> Because the size is evaluated at runtime, static analysis tools cannot mathematically prove the stack is safe. VLAs generate hundreds of false-positive (or true-positive) warnings in enterprise security audits.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t3-sec-silicon",
+          "title": "The Silicon Bridge"
+        },
+        {
+          "type": "text",
+          "block_id": "day7-t3-txt-silicon",
+          "content": "<p>In standard functions, the compiler knows the exact stack size and shifts the Stack Pointer (<code>rsp</code>) once at the start of the function. With a VLA, the compiler must emit instructions to evaluate <code>n</code>, align it to 16-byte boundaries, and execute a dynamic <code>sub rsp, rax</code> at runtime. Because <code>rsp</code> shifts unpredictably, the compiler can no longer use <code>rsp</code> to reliably find other local variables. It is forced to dedicate a precious CPU register (<code>rbp</code>, the Base Pointer) exclusively to anchoring the stack frame, robbing the function of a register and slowing down all math operations.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day7-t3-cb-assembly",
+          "language": "nasm",
+          "header": "Assembly Verification (Dynamic Stack Shifting)",
+          "code": "; C Code: int arr[n]; (where 'n' is in rax)\n\n; The CPU dynamically calculates the byte width (n * 4)\nshl     rax, 2\n\n; The CPU dynamically subtracts from the stack pointer at runtime\n; This is the exact moment a Stack Overflow crash can trigger\nsub     rsp, rax"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t3-sec-qa",
+          "title": "Mastery Q&A"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day7-t3-qa-mastery",
+          "items": [
+            { "question": "If VLAs are so dangerous, why did C99 introduce them?", "answer": "They were heavily requested by numerical and scientific computing developers (like those porting Fortran code). In closed scientific environments with known data sizes, VLAs provided dynamic matrices without the extreme performance overhead of `malloc`." },
+            { "question": "What is the difference between a VLA and a Flexible Array Member (FAM)?", "answer": "A VLA is an independent local stack variable. A FAM (`int data[];`) is declared at the very end of a `struct`. FAMs do not allocate memory themselves; you must use `malloc` to allocate the struct plus the dynamic trailing array size. FAMs are perfectly safe and industry-standard." },
+            { "question": "Can I return a VLA from a function?", "answer": "No. Exactly like a standard local array, the VLA memory is physically located on the function's stack frame. When the function returns, the CPU unreserves that memory. Returning it yields a dangling pointer." },
+            { "question": "How do I check if my compiler supports VLAs?", "answer": "Since C11 made them optional, you can check the preprocessor macro `__STDC_NO_VLA__`. If it is defined to 1, the compiler actively refuses to compile VLAs." },
+            { "question": "Is `alloca()` part of the C standard?", "answer": "No. It is a deeply embedded compiler extension (primarily GCC/Clang). It does exactly what a VLA does (allocates stack memory dynamically) but operates as a function call. It is highly discouraged in modern systems." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day7-t3-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day7-t3-quiz-mastery",
+          "time_limit_seconds": 375,
+          "questions": [
+            {
+              "question": "What is the fundamental architectural risk of using a Variable Length Array (VLA) based on untrusted user input?",
+              "options": [
+                { "id": "t3-q1-a", "text": "The memory might not be contiguous.", "is_correct": false, "explanation": "VLAs are always contiguous on the stack." },
+                { "id": "t3-q1-b", "text": "If the user inputs a massive number, the dynamic allocation will exceed the thread's rigid stack limit, triggering an inescapable hardware Segfault.", "is_correct": true, "explanation": "Unlike `malloc` which gracefully returns NULL if RAM is exhausted, blowing past the stack guard page triggers an immediate OS kill signal." },
+                { "id": "t3-q1-c", "text": "The memory requires manual freeing via `free()`.", "is_correct": false, "explanation": "VLAs are automatically freed when the scope ends." },
+                { "id": "t3-q1-d", "text": "The compiler silently converts it to a Heap allocation.", "is_correct": false, "explanation": "Compilers do not convert stack definitions to heap automatically." }
+              ]
+            },
+            {
+              "question": "Why does using a VLA slow down the execution of the rest of the function?",
+              "options": [
+                { "id": "t3-q2-a", "text": "It forces the CPU to switch to Ring 0 (Kernel mode).", "is_correct": false, "explanation": "Stack allocation is a purely user-space operation." },
+                { "id": "t3-q2-b", "text": "It relies on `glibc` memory managers.", "is_correct": false, "explanation": "It bypasses glibc entirely using raw assembly." },
+                { "id": "t3-q2-c", "text": "Because the Stack Pointer (`rsp`) shifts dynamically, the compiler must dedicate the Base Pointer register (`rbp`) to track local variables, breaking frame-pointer omission optimizations and wasting a CPU register.", "is_correct": true, "explanation": "Normally, `rsp` is static, so compilers use it to find locals and free up `rbp` for math. VLAs make `rsp` unpredictable, forcing the compiler to re-enable `rbp` tracking." },
+                { "id": "t3-q2-d", "text": "It flushes the L1 cache.", "is_correct": false, "explanation": "It does not flush caches." }
+              ]
+            },
+            {
+              "question": "What happens if a VLA is declared inside a `while` loop (e.g., `while(1) { int arr[n]; }`)?",
+              "options": [
+                { "id": "t3-q3-a", "text": "The array is safely re-allocated in the exact same memory spot every iteration.", "is_correct": false, "explanation": "The compiler does not guarantee in-place reallocation for dynamic scopes." },
+                { "id": "t3-q3-b", "text": "The stack pointer decrements on every iteration, allocating new memory, but only restores it at the end of the loop scope, rapidly exhausting stack memory.", "is_correct": true, "explanation": "Depending on compiler optimizations, VLAs in loops can exhibit \"stack leak\" behavior within the loop execution, blowing the stack much faster than anticipated." },
+                { "id": "t3-q3-c", "text": "The compiler throws a syntax error.", "is_correct": false, "explanation": "It is perfectly valid syntax." },
+                { "id": "t3-q3-d", "text": "The array is moved to the heap.", "is_correct": false, "explanation": "It stays on the stack." }
+              ]
+            },
+            {
+              "question": "How is the `sizeof()` operator evaluated when applied to a Variable Length Array?",
+              "options": [
+                { "id": "t3-q4-a", "text": "It is evaluated at compile-time to 0.", "is_correct": false, "explanation": "It yields the true byte size." },
+                { "id": "t3-q4-b", "text": "It throws a compiler warning.", "is_correct": false, "explanation": "It is valid syntax." },
+                { "id": "t3-q4-c", "text": "It is the ONLY scenario in C where `sizeof()` evaluates dynamically at runtime, multiplying the runtime dimension by the element size.", "is_correct": true, "explanation": "Because `n` is unknown at compile time, the compiler injects physical Assembly instructions to execute the math during runtime." },
+                { "id": "t3-q4-d", "text": "It returns the size of a pointer (8 bytes).", "is_correct": false, "explanation": "It returns the full byte size of the allocated array." }
+              ]
+            },
+            {
+              "question": "If you need a dynamic array in a secure, safety-critical codebase where VLAs are banned via `-Werror=vla`, what is the correct architectural pattern?",
+              "options": [
+                { "id": "t3-q5-a", "text": "Use `alloca()` instead.", "is_correct": false, "explanation": "alloca() is identical to a VLA in danger and mechanics." },
+                { "id": "t3-q5-b", "text": "Use a fixed-size Stack array for sizes under a specific threshold (e.g., 4KB), and fall back to `malloc()` (Heap) for larger dynamic sizes, handling NULL return checks.", "is_correct": true, "explanation": "This 'Hybrid Approach' guarantees speed for 99% of tiny payloads, while safely handling massive payloads without risking a hardware stack crash." },
+                { "id": "t3-q5-c", "text": "Use a global array.", "is_correct": false, "explanation": "Globals cannot be sized dynamically." },
+                { "id": "t3-q5-d", "text": "Cast a `void*` to a dynamic size.", "is_correct": false, "explanation": "Pointers do not allocate memory themselves." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

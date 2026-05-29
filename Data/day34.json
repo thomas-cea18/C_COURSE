@@ -1,0 +1,273 @@
+{
+  "day": 34,
+  "module": "9: Network Sockets & Protocols",
+  "topics": [
+    {
+      "header_hub": {
+        "title": "Connectionless Transmission using UDP (sendto, recvfrom)",
+        "category": "Networking",
+        "complexity": "Intermediate",
+        "standard": "POSIX",
+        "read_time": 25,
+        "prerequisites": ["day-33-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day34-t1-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day34-t1-txt-strategic-problem",
+          "content": "<p>TCP (<code>SOCK_STREAM</code>) is magnificent for reliability. It guarantees packets arrive in chronological order and automatically re-transmits dropped packets. However, this reliability incurs a massive latency penalty. If Packet 1 is dropped, TCP completely halts the application from reading Packet 2 and 3 until Packet 1 is successfully re-transmitted. This is called <strong>Head-Of-Line Blocking</strong>. In domains like High-Frequency Trading (HFT), VoIP, or Multiplayer Gaming, stale data is worthless. We do not want to wait 200ms for an old player position packet; we want to process the newest packet instantly. We achieve this by abandoning TCP entirely and utilizing <strong>User Datagram Protocol (UDP)</strong> via <code>SOCK_DGRAM</code>.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day34-t1-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day34-t1-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;sys/socket.h&gt;</span>\n<span class=\"syntax-kw\">int</span> sock = socket(AF_INET, SOCK_DGRAM, 0);\n\n<span class=\"syntax-ty\">ssize_t</span> sendto(<span class=\"syntax-kw\">int</span> sockfd, <span class=\"syntax-kw\">const void</span> *buf, <span class=\"syntax-ty\">size_t</span> len, <span class=\"syntax-kw\">int</span> flags, <span class=\"syntax-kw\">const struct</span> sockaddr *dest_addr, <span class=\"syntax-ty\">socklen_t</span> addrlen);\n<span class=\"syntax-ty\">ssize_t</span> recvfrom(<span class=\"syntax-kw\">int</span> sockfd, <span class=\"syntax-kw\">void</span> *buf, <span class=\"syntax-ty\">size_t</span> len, <span class=\"syntax-kw\">int</span> flags, <span class=\"syntax-kw\">struct</span> sockaddr *src_addr, <span class=\"syntax-ty\">socklen_t</span> *addrlen);",
+          "description": "The unbuffered, connectionless POSIX API for transmitting raw UDP datagrams.",
+          "parameters": [
+            { "name": "SOCK_DGRAM", "type": "Macro", "description": "Instructs the Kernel to bypass the TCP state machine. No handshakes. No tracking." },
+            { "name": "sendto", "type": "Syscall", "description": "Blasts a buffer to a target IP/Port. The OS does not care if the target actually exists." },
+            { "name": "recvfrom", "type": "Syscall", "description": "Receives a packet and populates 'src_addr' with the IP/Port of whoever sent it." }
+          ],
+          "returns": { "type": "ssize_t", "description": "Bytes successfully queued to the network interface, or -1 on local failure." },
+          "complexity": "O(1) execution. Extremely low Kernel CPU overhead.",
+          "exceptions": "If the buffer supplied to recvfrom is smaller than the arriving datagram, the excess bytes are violently truncated and permanently lost."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day34-t1-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day34-t1-txt-mechanics",
+          "content": "<p>Unlike TCP, UDP has no <code>listen()</code> and no <code>accept()</code>. You simply bind a socket to a port and start calling <code>recvfrom()</code>. Every time you call it, you receive exactly one discrete message. Datagram boundaries are strictly preserved by the Kernel (no manual message parsing required). If the sender executes <code>sendto()</code> for 50 bytes, and then <code>sendto()</code> for 100 bytes, the receiver will get exactly 50 bytes on the first call, and 100 on the second. However, UDP is unapologetically violent. Packets will arrive out of chronological order. Duplicate packets will arrive. Packets will disappear completely. It pushes the absolute burden of state logic and sequence tracking entirely into your User-Space C code.</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day34-t1-svg-mechanics",
+          "caption": "TCP Ordered Byte-Stream vs UDP Chaotic Datagram Delivery.",
+          "alt_text": "Visual showing TCP packets traveling sequentially through a pipe and pausing if one drops, while UDP datagrams are fired independently, bypassing dropped packets.",
+          "svg_code": "<svg viewBox='0 0 600 250' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='250' fill='var(--bg-card)'/><g transform='translate(20, 20)'><rect x='0' y='0' width='560' height='90' fill='rgba(14, 165, 233, 0.05)' stroke='var(--accent)' stroke-width='2' rx='4'/><text x='10' y='25' fill='var(--accent)' font-family='monospace' font-weight='bold'>TCP (SOCK_STREAM)</text><path d='M 180 55 L 450 55' stroke='var(--text-secondary)' stroke-width='3' stroke-dasharray='4,4'/><rect x='10' y='40' width='60' height='30' fill='var(--bg-hover)'/><text x='40' y='60' fill='var(--text-primary)' font-family='monospace' text-anchor='middle'>Sender</text><rect x='490' y='40' width='60' height='30' fill='var(--bg-hover)'/><text x='520' y='60' fill='var(--text-primary)' font-family='monospace' text-anchor='middle'>Recv</text><rect x='100' y='40' width='30' height='30' fill='rgba(14, 165, 233, 0.2)' stroke='var(--accent)'/><text x='115' y='60' fill='var(--accent)' font-family='monospace' font-size='10' text-anchor='middle'>#3</text><rect x='220' y='40' width='30' height='30' fill='rgba(239, 68, 68, 0.2)' stroke='var(--danger-border)' stroke-dasharray='2,2'/><text x='235' y='60' fill='var(--danger-border)' font-family='monospace' font-size='10' text-anchor='middle'>#2</text><rect x='340' y='40' width='30' height='30' fill='rgba(14, 165, 233, 0.2)' stroke='var(--accent)'/><text x='355' y='60' fill='var(--accent)' font-family='monospace' font-size='10' text-anchor='middle'>#1</text><text x='235' y='85' fill='var(--danger-border)' font-family='monospace' font-size='10' text-anchor='middle'>DROPPED</text><path d='M380 55 L480 55' stroke='var(--danger-border)' stroke-width='4' marker-end='url(#arrow-danger)'/><text x='430' y='45' fill='var(--danger-border)' font-family='monospace' font-size='10' font-weight='bold' text-anchor='middle'>BLOCKED</text></g><g transform='translate(20, 130)'><rect x='0' y='0' width='560' height='90' fill='rgba(16, 185, 129, 0.05)' stroke='var(--success-border)' stroke-width='2' rx='4'/><text x='10' y='25' fill='var(--success-border)' font-family='monospace' font-weight='bold'>UDP (SOCK_DGRAM)</text><rect x='10' y='40' width='60' height='30' fill='var(--bg-hover)'/><text x='40' y='60' fill='var(--text-primary)' font-family='monospace' text-anchor='middle'>Sender</text><rect x='490' y='40' width='60' height='30' fill='var(--bg-hover)'/><text x='520' y='60' fill='var(--text-primary)' font-family='monospace' text-anchor='middle'>Recv</text><rect x='150' y='30' width='30' height='30' fill='rgba(16, 185, 129, 0.2)' stroke='var(--success-border)'/><text x='165' y='50' fill='var(--success-border)' font-family='monospace' font-size='10' text-anchor='middle'>#3</text><rect x='280' y='60' width='30' height='30' fill='rgba(239, 68, 68, 0.2)' stroke='var(--danger-border)' stroke-dasharray='2,2'/><text x='295' y='80' fill='var(--danger-border)' font-family='monospace' font-size='10' text-anchor='middle'>#2</text><rect x='410' y='30' width='30' height='30' fill='rgba(16, 185, 129, 0.2)' stroke='var(--success-border)'/><text x='425' y='50' fill='var(--success-border)' font-family='monospace' font-size='10' text-anchor='middle'>#1</text><path d='M75 55 Q 120 10 185 40' stroke='var(--success-border)' stroke-width='2' fill='none' marker-end='url(#arrow-succ)'/><path d='M185 40 Q 300 10 405 40' stroke='var(--success-border)' stroke-width='2' fill='none' marker-end='url(#arrow-succ)'/><path d='M445 40 Q 470 55 485 55' stroke='var(--success-border)' stroke-width='2' fill='none' marker-end='url(#arrow-succ)'/><path d='M75 55 Q 150 100 275 80' stroke='var(--danger-border)' stroke-width='2' fill='none'/><text x='430' y='20' fill='var(--success-border)' font-family='monospace' font-size='10' font-weight='bold' text-anchor='middle'>ARRIVES</text></g><defs><marker id='arrow-danger' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--danger-border)'/></marker><marker id='arrow-succ' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--success-border)'/></marker></defs></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day34-t1-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day34-t1-cb-udp",
+          "language": "c",
+          "header": "A High-Velocity UDP Receiver",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;stdlib.h&gt;\n#include &lt;string.h&gt;\n#include &lt;arpa/inet.h&gt;\n\n#define PORT 8080\n#define MAX_PAYLOAD 1024\n\nint main() {\n    // 1. Create a DGRAM socket (UDP)\n    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);\n    \n    struct sockaddr_in server_addr = {0};\n    server_addr.sin_family = AF_INET;\n    server_addr.sin_addr.s_addr = INADDR_ANY;\n    server_addr.sin_port = htons(PORT);\n    \n    // 2. Bind. Notice there is NO listen() and NO accept().\n    if (bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {\n        perror(\"Bind failed\");\n        return 1;\n    }\n    \n    printf(\"UDP Receiver active on port %d.\\n\", PORT);\n    \n    char buffer[MAX_PAYLOAD];\n    struct sockaddr_in client_addr;\n    socklen_t client_len = sizeof(client_addr);\n    \n    while (1) {\n        // 3. recvfrom blocks until ANY datagram arrives.\n        // It populates client_addr so we know precisely who sent it.\n        ssize_t bytes = recvfrom(sockfd, buffer, MAX_PAYLOAD, 0, \n                                 (struct sockaddr *)&client_addr, &client_len);\n                                 \n        if (bytes > 0) {\n            buffer[bytes] = '\\0'; // Null-terminate for printing\n            printf(\"Received %zd bytes from %s\\n\", bytes, inet_ntoa(client_addr.sin_addr));\n                   \n            // 4. Instantly reply using sendto()\n            char *reply = \"ACK\";\n            sendto(sockfd, reply, strlen(reply), 0, \n                   (struct sockaddr *)&client_addr, client_len);\n        }\n    }\n    return 0;\n}"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day34-t1-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day34-t1-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "What is the primary architectural cause of 'Head-Of-Line Blocking' in TCP that UDP completely avoids?",
+              "options": [
+                { "id": "t1-q1-a", "text": "If TCP Packet #1 is dropped, the OS Kernel completely halts the delivery of Packet #2 and Packet #3 to the application layer until Packet #1 is successfully re-transmitted, freezing real-time data pipelines.", "is_correct": true, "explanation": "UDP ignores missing packets and instantly hands the newest data to the application, eliminating artificial blocking delays." },
+                { "id": "t1-q1-b", "text": "TCP forces the application to parse data chronologically.", "is_correct": false, "explanation": "While true, the OS behavior on loss is the true blocker." },
+                { "id": "t1-q1-c", "text": "TCP requires IPv6.", "is_correct": false, "explanation": "TCP works on IPv4 and IPv6." },
+                { "id": "t1-q1-d", "text": "TCP uses Epoll internally.", "is_correct": false, "explanation": "Epoll manages both UDP and TCP." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "MTU Limits, Packet Fragmentation, and Out-Of-Order Delivery",
+        "category": "Networking",
+        "complexity": "Advanced",
+        "standard": "RFC 768",
+        "read_time": 25,
+        "prerequisites": ["day-34-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day34-t2-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day34-t2-txt-strategic-problem",
+          "content": "<p>When you call <code>sendto()</code> with a 50,000-byte buffer, the system call will succeed. However, the internet physically operates on Ethernet hardware, which strictly enforces a <strong>Maximum Transmission Unit (MTU)</strong> of exactly 1500 bytes. Because 50,000 bytes cannot fit into a 1500-byte wire frame, the Operating System's IP layer silently kicks in and \"fragments\" your massive UDP datagram into roughly 34 separate physical packets. This introduces a fatal vulnerability: Because UDP guarantees absolutely zero re-transmissions, if even a <em>single</em> fragment out of the 34 is dropped by a congested network switch, the receiver's OS mathematically cannot reassemble the datagram. The receiving Kernel silently discards the other 33 fragments into the void. Sending large UDP packets guarantees catastrophic data loss over the public internet.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day34-t2-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day34-t2-txt-mechanics",
+          "content": "<p>To build reliable UDP applications, you must ensure your packets are never fragmented. A standard Ethernet MTU is 1500 bytes. The IPv4 header consumes 20 bytes. The UDP header consumes 8 bytes. This leaves exactly <strong>1472 bytes</strong> for your application payload. However, if your packet routes through a VPN, IPsec tunnel, or PPPoE connection, those protocols inject their own headers, reducing the MTU further. Elite network engineers establish a hard safety limit: <strong>Never configure a UDP payload to exceed 1400 bytes</strong>. If you have an image that is 60,000 bytes, you must write Application-Layer chunking logic to manually slice the image into 1400-byte datagrams, assign them Sequence IDs, and transmit them individually.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day34-t2-sec-trench-story",
+          "title": "Production Trench Story"
+        },
+        {
+          "type": "callout",
+          "block_id": "day34-t2-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage: The 1501-Byte Black Hole",
+          "content": "<p>A telecommunications firm routed VoIP audio payloads over UDP. Testing on `localhost` was flawless. In production, 80% of audio packets completely vanished over the public internet. The engineer was sending 2,000-byte UDP datagrams. When the 2000-byte UDP packet hit the router, the IP layer transparently fragmented it into two physical packets (1500 and 500). Because UDP lacks retransmission, if <em>either</em> fragment was dropped by a congested switch, the receiving Kernel couldn't reassemble the packet, and silently discarded the entire 2000-byte payload. The engineers had to rewrite their C structs to guarantee no payload ever exceeded 1400 bytes, instantly curing the packet loss.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day34-t2-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day34-t2-txt-debug-intro",
+          "content": "<p>Analyze the following broken snippet. Find the vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day34-t2-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The Truncated Receive",
+          "code": "#include &lt;sys/socket.h&gt;\n#include &lt;stdio.h&gt;\n\nvoid receive_telemetry(int sock) {\n    // Engineer allocates a small buffer to save RAM\n    char small_buffer[64];\n    \n    // The sender transmits a 500-byte telemetry packet.\n    ssize_t bytes = recvfrom(sock, small_buffer, sizeof(small_buffer), 0, NULL, NULL);\n    \n    if (bytes > 0) {\n        printf(\"Received data! Processing...\\n\");\n        \n        // BUG: The engineer assumes the remaining 436 bytes are waiting \n        // in the OS buffer and calls recvfrom again on the next loop iteration.\n    }\n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day34-t2-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "UDP strictly enforces datagram boundaries. If an incoming packet contains 500 bytes, and you execute `recvfrom(buf, 64)`, the Kernel fills your 64-byte buffer and instantly, violently deletes the remaining 436 bytes into the void. The next `recvfrom` call will NOT fetch the remainder of the packet; it will fetch the *next entirely distinct packet*. Excess payload is lost forever. Fix: Your buffer MUST be sized to accommodate the largest mathematically possible datagram your protocol defines (e.g., `char buffer[1500];`)." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day34-t2-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day34-t2-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "Why must engineers strictly limit UDP payload sizes to roughly 1400 bytes in production architectures?",
+              "options": [
+                { "id": "t2-q1-a", "text": "To prevent physical Ethernet routers from Fragmenting the packet (due to the 1500 MTU limit). In UDP, if a single fragment is dropped by a switch, the entire packet is permanently destroyed.", "is_correct": true, "explanation": "Guaranteeing a packet fits inside a single, unfragmented Ethernet frame drastically increases UDP reliability across the internet." },
+                { "id": "t2-q1-b", "text": "Because the `sendto` syscall cannot accept integers larger than 1400.", "is_correct": false, "explanation": "It accepts `size_t` payload counts up to 64k." },
+                { "id": "t2-q1-c", "text": "To prevent buffer overflows in C strings.", "is_correct": false, "explanation": "Buffer limits are controlled by array sizing, not networking." },
+                { "id": "t2-q1-d", "text": "To satisfy MISRA C standards.", "is_correct": false, "explanation": "MTU limits are networking constraints, not C syntax constraints." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Serializing C Structs Securely for Network Transport",
+        "category": "Data Serialization",
+        "complexity": "Expert",
+        "standard": "POSIX",
+        "read_time": 30,
+        "prerequisites": ["day-12-topic-1", "day-34-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day34-t3-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day34-t3-txt-strategic-problem",
+          "content": "<p>When building a multiplayer game, you have a <code>GameState</code> struct containing coordinates and health. The fastest way to send this over UDP seems to be blindly casting the struct pointer: <code>sendto(sock, (void*)&amp;state, sizeof(state))</code>. <strong>This is a catastrophic architectural flaw.</strong> If the server is compiled on Linux x86_64, and the client is compiled on an iOS ARM64 device, two hardware realities will destroy your data. First, <strong>Struct Padding</strong>: the x86 compiler might inject 3 invisible bytes of padding into your struct to align an integer, while the ARM compiler might inject none. The receiver's struct map will be totally misaligned. Second, <strong>Endianness</strong>: x86 stores integers in Little-Endian format, while network protocols (and historically ARM/PowerPC) expect Big-Endian format. Transmitting raw C structs guarantees cross-platform data corruption. We must explicitly <strong>Serialize</strong> our data into raw byte buffers.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day34-t3-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day34-t3-txt-mechanics",
+          "content": "<p>Serialization is the process of manually ripping the data out of a C Struct and placing it, byte-by-byte, into a flat <code>uint8_t</code> array. To fix Endianness, every multi-byte integer (16-bit, 32-bit, 64-bit) must be passed through the POSIX <code>htonl()</code> (Host TO Network Long) family of functions before entering the buffer. On the receiver side, the bytes are copied back out of the buffer, and passed through <code>ntohl()</code> (Network TO Host Long) before being assigned to the local struct. By managing the exact byte offset manually, compiler padding is entirely bypassed, and hardware endianness is perfectly neutralized.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day34-t3-sec-trench-story",
+          "title": "Production Trench Story"
+        },
+        {
+          "type": "callout",
+          "block_id": "day34-t3-callout-trench",
+          "variant": "danger",
+          "color": "var(--warning-border)",
+          "title": "The 3:00 AM Outage: The Packed Struct Betrayal",
+          "content": "<p>An embedded systems engineer thought they could outsmart serialization. They used the compiler attribute <code>__attribute__((packed))</code> on their C struct. This successfully eliminated all invisible padding bytes, allowing them to cast the struct pointer directly to <code>sendto()</code>. It worked for months. Then, they deployed the code to a new RISC-V microcontroller. The program instantly crashed with a <code>SIGBUS (Bus Error)</code> hardware fault. Why? By packing the struct, the integer `pos_x` was forced to start at memory address `0x...03` (an unaligned address). x86 CPUs silently handle unaligned memory reads with a slight performance penalty. RISC-V and ARM CPUs physically cannot read unaligned memory and trigger a fatal hardware exception. Manual serialization via <code>memcpy</code> into byte buffers prevents both padding mismatches and alignment hardware faults.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day34-t3-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day34-t3-cb-serialize",
+          "language": "c",
+          "header": "Safe UDP Struct Serialization and Transmission",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;stdint.h&gt;\n#include &lt;string.h&gt;\n#include &lt;arpa/inet.h&gt;\n#include &lt;sys/socket.h&gt;\n\n// The core Game State we need to transmit\ntypedef struct {\n    uint8_t player_id;\n    uint32_t health;\n    uint32_t pos_x;\n    uint32_t pos_y;\n} GameState;\n\n// 1. Serialization (Sender Side)\n// We construct a pure byte array, mathematically forcing the data into \n// Big-Endian Network Byte Order (htonl), completely immune to compiler padding.\nsize_t serialize_gamestate(const GameState *state, uint8_t *buffer) {\n    size_t offset = 0;\n    \n    buffer[offset++] = state->player_id; // 1 Byte\n    \n    uint32_t net_health = htonl(state->health);\n    memcpy(buffer + offset, &net_health, 4);\n    offset += 4;\n    \n    uint32_t net_x = htonl(state->pos_x);\n    memcpy(buffer + offset, &net_x, 4);\n    offset += 4;\n    \n    uint32_t net_y = htonl(state->pos_y);\n    memcpy(buffer + offset, &net_y, 4);\n    offset += 4;\n    \n    return offset; // Exact bytes used (13 bytes)\n}\n\n// 2. Deserialization (Receiver Side)\n// Reconstructs the struct from the raw Big-Endian payload\nvoid deserialize_gamestate(const uint8_t *buffer, GameState *state) {\n    size_t offset = 0;\n    \n    state->player_id = buffer[offset++];\n    \n    uint32_t net_health;\n    memcpy(&net_health, buffer + offset, 4);\n    state->health = ntohl(net_health); // Convert Network back to Host order\n    offset += 4;\n    \n    uint32_t net_x;\n    memcpy(&net_x, buffer + offset, 4);\n    state->pos_x = ntohl(net_x);\n    offset += 4;\n    \n    uint32_t net_y;\n    memcpy(&net_y, buffer + offset, 4);\n    state->pos_y = ntohl(net_y);\n}"
+        },
+        {
+          "type": "callout",
+          "block_id": "day34-t3-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Strict Raw Pointer Banning:</strong> You are mathematically forbidden from writing <code>sendto(..., (void*)&amp;my_struct, ...)</code> in cross-platform systems code. Always serialize via explicit byte arrays or use enterprise serialization frameworks (e.g., Google Protocol Buffers, FlatBuffers).</li><li><strong>Application-Layer Reliability:</strong> Because UDP provides zero delivery guarantees, your serialized struct payload MUST embed a <code>Sequence_ID</code> or <code>Timestamp</code>. If the receiver parses ID 5, and then parses ID 7, it knows ID 6 was dropped. Depending on the architecture, it can either request a re-transmission or cleanly interpolate the missing physics frame.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day34-t3-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day34-t3-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "Why is blindly casting a C struct to a `char*` and transmitting it via `sendto` considered a catastrophic anti-pattern?",
+              "options": [
+                { "id": "t3-q1-a", "text": "Different CPU architectures inject distinct padding bytes for alignment and map integers using opposing Endianness (Byte-Order). The receiver will physically map the bytes to the wrong internal struct fields, generating corrupted garbage data.", "is_correct": true, "explanation": "Data crossing network boundaries must be explicitly serialized byte-by-byte into Network Byte Order." },
+                { "id": "t3-q1-b", "text": "It causes memory leaks on the receiver.", "is_correct": false, "explanation": "It corrupts data, but doesn't leak Heap memory natively." },
+                { "id": "t3-q1-c", "text": "The struct pointer will trigger a Segfault during `sendto`.", "is_correct": false, "explanation": "The Kernel sends the bytes flawlessly; the failure happens during receiver interpretation." },
+                { "id": "t3-q1-d", "text": "The MAC address is overwritten.", "is_correct": false, "explanation": "Struct casting does not affect L2 network headers." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

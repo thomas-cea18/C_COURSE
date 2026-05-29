@@ -1,0 +1,270 @@
+{
+  "day": 31,
+  "module": "8: Multithreading, Concurrency & IPC",
+  "topics": [
+    {
+      "header_hub": {
+        "title": "Unidirectional Byte Streams using pipe()",
+        "category": "Inter-Process Communication",
+        "complexity": "Intermediate",
+        "standard": "POSIX",
+        "read_time": 30,
+        "prerequisites": ["day-25-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day31-t1-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day31-t1-txt-strategic-problem",
+          "content": "<p>When we use <code>fork()</code>, we create a Child process with a completely isolated Virtual Memory space. The Parent and Child can no longer share variables. If the Child computes a cryptographic hash, how does it send that string back to the Parent? They cannot use RAM directly. We must establish a channel through the OS Kernel that transcends the process boundaries. The oldest, most fundamental form of Inter-Process Communication (IPC) in UNIX is the <strong>Anonymous Pipe</strong>. It is a unidirectional (one-way) data tunnel managed entirely in the Kernel's memory.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day31-t1-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day31-t1-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;unistd.h&gt;</span>\n\n<span class=\"syntax-kw\">int</span> pipefd[2];\n<span class=\"syntax-kw\">if</span> (pipe(pipefd) == -1) { perror(<span class=\"syntax-str\">\"pipe\"</span>); }\n\n// pipefd[0] is the READ end.\n// pipefd[1] is the WRITE end.",
+          "description": "The POSIX system call to create a unidirectional data channel in Kernel RAM.",
+          "parameters": [
+            { "name": "pipefd", "type": "int array", "description": "An array of exactly two integers. The Kernel will populate these with two newly minted File Descriptors." }
+          ],
+          "returns": { "type": "int", "description": "Returns 0 on success, or -1 on failure." },
+          "complexity": "O(1) Kernel resource allocation. Read/Write speeds are bounded only by memory bandwidth.",
+          "exceptions": "If the writer writes to a pipe where all read ends are closed, the OS violently sends a SIGPIPE signal to the writer, usually terminating it."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day31-t1-sec-mechanics",
+          "title": "Internal Mechanics: Cross-Process Plumbing"
+        },
+        {
+          "type": "text",
+          "block_id": "day31-t1-txt-mechanics",
+          "content": "<p>A Pipe acts exactly like a FIFO queue in Kernel space (usually 64KB capacity). To establish cross-process routing, the Parent must call <code>pipe()</code> <em>before</em> calling <code>fork()</code>. Because <code>fork()</code> duplicates the File Descriptor table, the Child inherits access to the exact same pipe. Because a pipe is unidirectional, data must only flow one way. If the Child is sending data to the Parent, the Child MUST close <code>pipefd[0]</code> (the read end), and the Parent MUST close <code>pipefd[1]</code> (the write end). If you forget to close the unused ends, the Kernel cannot correctly detect EOF (End of File), causing the reader to block infinitely in a deadlock.</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day31-t1-svg-mechanics",
+          "caption": "An architecture diagram showing a Parent and Child process writing and reading from opposing ends of a unidirectional Pipe.",
+          "alt_text": "Visual showing Child Process writing data to FD 1 (Write End), routing through a Kernel Buffer, and being read by the Parent Process on FD 0 (Read End).",
+          "svg_code": "<svg viewBox='0 0 600 250' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='250' fill='var(--bg-card)'/><g transform='translate(20, 20)'><rect x='0' y='0' width='160' height='210' fill='rgba(14, 165, 233, 0.1)' stroke='var(--accent)' stroke-width='2' rx='4'/><text x='80' y='25' fill='var(--accent)' font-family='monospace' font-weight='bold' text-anchor='middle'>Child Process</text><rect x='20' y='50' width='120' height='30' fill='rgba(239, 68, 68, 0.2)' stroke='var(--danger-border)' stroke-dasharray='4,4'/><text x='80' y='70' fill='var(--danger-border)' font-family='monospace' font-size='10' text-anchor='middle'>FD 0 (Closed)</text><rect x='20' y='100' width='120' height='40' fill='var(--bg-hover)' stroke='var(--accent)'/><text x='80' y='115' fill='var(--text-primary)' font-family='monospace' font-size='10' text-anchor='middle'>FD 1 (Write End)</text><text x='80' y='130' fill='var(--accent)' font-family='monospace' font-size='10' font-weight='bold' text-anchor='middle'>write(fd1, \"Hi\")</text></g><path d='M180 120 L260 120' stroke='var(--accent)' stroke-width='3' marker-end='url(#arrow-acc)'/><g transform='translate(270, 80)'><rect x='0' y='0' width='100' height='80' fill='none' stroke='var(--warning-border)' stroke-width='2' rx='4'/><text x='50' y='35' fill='var(--warning-border)' font-family='monospace' font-size='10' font-weight='bold' text-anchor='middle'>OS Kernel</text><text x='50' y='50' fill='var(--text-secondary)' font-family='monospace' font-size='10' text-anchor='middle'>64KB</text><text x='50' y='65' fill='var(--text-secondary)' font-family='monospace' font-size='10' text-anchor='middle'>Buffer</text></g><path d='M370 120 L450 120' stroke='var(--success-border)' stroke-width='3' marker-end='url(#arrow-succ)'/><g transform='translate(460, 20)'><rect x='0' y='0' width='120' height='210' fill='rgba(16, 185, 129, 0.1)' stroke='var(--success-border)' stroke-width='2' rx='4'/><text x='60' y='25' fill='var(--success-border)' font-family='monospace' font-weight='bold' text-anchor='middle'>Parent</text><rect x='10' y='100' width='100' height='40' fill='var(--bg-hover)' stroke='var(--success-border)'/><text x='60' y='115' fill='var(--text-primary)' font-family='monospace' font-size='10' text-anchor='middle'>FD 0 (Read)</text><text x='60' y='130' fill='var(--success-border)' font-family='monospace' font-size='10' font-weight='bold' text-anchor='middle'>read(fd0)</text><rect x='10' y='160' width='100' height='30' fill='rgba(239, 68, 68, 0.2)' stroke='var(--danger-border)' stroke-dasharray='4,4'/><text x='60' y='180' fill='var(--danger-border)' font-family='monospace' font-size='10' text-anchor='middle'>FD 1 (Closed)</text></g><defs><marker id='arrow-acc' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--accent)'/></marker><marker id='arrow-succ' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--success-border)'/></marker></defs></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day31-t1-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day31-t1-cb-pipe",
+          "language": "c",
+          "header": "Streaming Data from Child to Parent via Anonymous Pipe (Assessment Check)",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;stdlib.h&gt;\n#include &lt;unistd.h&gt;\n#include &lt;string.h&gt;\n#include &lt;sys/wait.h&gt;\n\nint main() {\n    int pipefd[2];\n    \n    // 1. We MUST create the pipe BEFORE forking!\n    if (pipe(pipefd) == -1) {\n        perror(\"Pipe creation failed\");\n        exit(EXIT_FAILURE);\n    }\n    \n    pid_t pid = fork();\n    \n    if (pid == 0) {\n        // CHILD PROCESS (The Writer)\n        close(pipefd[0]); // Close unused read end immediately\n        \n        char *msg = \"Critical Payload Data\\n\";\n        // Write to the pipe exactly like writing to a file\n        write(pipefd[1], msg, strlen(msg));\n        \n        // Closing the write end sends an EOF signal to the Parent's read()\n        close(pipefd[1]); \n        exit(EXIT_SUCCESS);\n        \n    } else {\n        // PARENT PROCESS (The Reader)\n        close(pipefd[1]); // Close unused write end immediately\n        \n        char buffer[1024];\n        // read() will block until the Child writes data into the pipe\n        ssize_t bytes = read(pipefd[0], buffer, sizeof(buffer));\n        \n        if (bytes > 0) {\n            buffer[bytes] = '\\0';\n            printf(\"Parent received: %s\", buffer);\n        }\n        \n        close(pipefd[0]); // Cleanup\n        wait(NULL);       // Reap the zombie child\n    }\n    return 0;\n}"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day31-t1-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day31-t1-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "Why is it architecturally critical for the Parent process to close its copy of the pipe's Write End (`pipefd[1]`) if it only intends to read from the pipe?",
+              "options": [
+                { "id": "t1-q1-a", "text": "To prevent the Parent from accidentally writing to its own read buffer.", "is_correct": false, "explanation": "While true, the larger architectural issue involves EOF blocking." },
+                { "id": "t1-q1-b", "text": "The OS Kernel will not signal an End-Of-File (EOF) to the reading process until EVERY open Write End referencing that pipe is completely closed. If the Parent keeps its own Write End open, its `read()` call will block infinitely in a deadlock waiting for data that will never arrive.", "is_correct": true, "explanation": "Unclosed pipe ends are the number one cause of deadlocks in multi-process Unix topologies." },
+                { "id": "t1-q1-c", "text": "It frees up exactly 4MB of Kernel memory.", "is_correct": false, "explanation": "Closing the FD removes a table entry, but doesn't immediately free the pipe buffer until all descriptors close." },
+                { "id": "t1-q1-d", "text": "To satisfy the `waitpid()` requirements.", "is_correct": false, "explanation": "Waitpid operates on process states, not file descriptors." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Named Pipes (FIFOs) Persisting in the Filesystem",
+        "category": "Inter-Process Communication",
+        "complexity": "Advanced",
+        "standard": "POSIX",
+        "read_time": 25,
+        "prerequisites": ["day-31-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day31-t2-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day31-t2-txt-strategic-problem",
+          "content": "<p>Anonymous pipes (<code>pipe()</code>) are flawless, but they possess a fatal limitation: they can only be used by processes that share a direct ancestry (a Parent and its forked Child). What if you write a Python script that needs to stream data instantly into a separately compiled, independently running C binary? Since they don't share a Parent, they don't share a File Descriptor table. To solve this, we leverage the UNIX \"Everything is a File\" philosophy. We create a <strong>Named Pipe (FIFO)</strong>. It is a pipe that possesses an actual filename in the filesystem (e.g., <code>/tmp/my_pipe</code>), allowing completely unrelated, sovereign processes to route data to each other seamlessly.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day31-t2-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day31-t2-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;sys/stat.h&gt;</span>\n\n<span class=\"syntax-kw\">if</span> (mkfifo(<span class=\"syntax-str\">\"/tmp/my_fifo\"</span>, 0666) == -1) { ... }\n\n<span class=\"syntax-kw\">int</span> fd = open(<span class=\"syntax-str\">\"/tmp/my_fifo\"</span>, O_RDONLY);",
+          "description": "The POSIX system call to create a Named Pipe (FIFO) in the filesystem.",
+          "parameters": [
+            { "name": "pathname", "type": "String", "description": "The path where the FIFO file will visually exist in the filesystem." },
+            { "name": "mode", "type": "Octal", "description": "Standard file permissions (e.g., 0666), restricted by the process umask." }
+          ],
+          "returns": { "type": "int", "description": "Returns 0 on success, or -1 on error (e.g., EEXIST if it already exists)." },
+          "complexity": "Opening a FIFO blocks until the other party opens it.",
+          "exceptions": "Despite having a filename, data written to a FIFO NEVER touches the physical hard drive."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day31-t2-sec-mechanics",
+          "title": "Internal Mechanics: The Synchronization Trap"
+        },
+        {
+          "type": "text",
+          "block_id": "day31-t2-txt-mechanics",
+          "content": "<p>When you create a FIFO via <code>mkfifo</code>, it appears when you type <code>ls -l</code>. However, the file size is always 0 bytes. The data lives strictly in a 64KB RAM buffer inside the Kernel. The most jarring mechanical quirk of a FIFO is its synchronization lock. If Process A executes <code>open(\"/tmp/fifo\", O_WRONLY)</code>, <strong>the Kernel puts Process A to sleep immediately.</strong> The <code>open()</code> system call physically will not return until Process B executes <code>open(\"/tmp/fifo\", O_RDONLY)</code>. The Kernel refuses to let a writer open the pipe until a reader is present to catch the data, and vice versa. This forces two independent binaries to tightly synchronize their boot sequences.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day31-t2-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day31-t2-txt-debug-intro",
+          "content": "<p>Analyze the following broken snippet. Find the vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day31-t2-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The Frozen Daemon",
+          "code": "#include &lt;fcntl.h&gt;\n#include &lt;sys/stat.h&gt;\n#include &lt;stdio.h&gt;\n\nvoid start_logging_daemon() {\n    // Create the FIFO to receive log strings from other apps\n    mkfifo(\"/tmp/logger_pipe\", 0666);\n    \n    printf(\"Daemon booting...\\n\");\n    \n    // Engineer opens the pipe to read incoming logs\n    int fd = open(\"/tmp/logger_pipe\", O_RDONLY);\n    \n    // DANGER: This initialization code NEVER executes\n    printf(\"Initializing database connections...\\n\");\n    // init_db(); \n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day31-t2-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "The engineer placed the `open()` call before the database initialization. Because a FIFO demands a peer, the `open(..., O_RDONLY)` call blocks infinitely. The daemon will completely freeze on that exact line of code until some external application opens the FIFO for writing. The database will never be initialized. Fix: Open the FIFO with the `O_NONBLOCK` flag (which allows `open` to return instantly even if no writer is present), OR initialize all internal states/databases *before* blocking on the pipe." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day31-t2-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day31-t2-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "What is the true physical storage medium for data pushed through a Named Pipe (FIFO) via the filesystem?",
+              "options": [
+                { "id": "t2-q1-a", "text": "The physical Hard Drive (SSD/HDD), which is why FIFOs are slower than Anonymous Pipes.", "is_correct": false, "explanation": "FIFOs are completely memory-bound." },
+                { "id": "t2-q1-b", "text": "It is exactly identical to an Anonymous Pipe. The VFS filename is merely a router alias. The actual payload data exclusively traverses an isolated RAM buffer inside the OS Kernel and NEVER touches the physical disk.", "is_correct": true, "explanation": "This guarantees that disk I/O latency does not throttle IPC communications." },
+                { "id": "t2-q1-c", "text": "The shared L1 Cache of the CPU.", "is_correct": false, "explanation": "Cache is managed by the hardware; pipes use Kernel allocated RAM buffers." },
+                { "id": "t2-q1-d", "text": "The /var/tmp memory partition.", "is_correct": false, "explanation": "While it can be created there, the data doesn't hit the VFS blocks." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "POSIX Message Queues for Structured Datagrams",
+        "category": "Inter-Process Communication",
+        "complexity": "Expert",
+        "standard": "POSIX",
+        "read_time": 30,
+        "prerequisites": ["day-31-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day31-t3-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day31-t3-txt-strategic-problem",
+          "content": "<p>Pipes (both Anonymous and Named) share a crippling architectural flaw: they are unstructured <strong>Byte Streams</strong>. If Process A writes 10 bytes, and then 20 bytes, Process B might execute <code>read()</code> and instantly consume all 30 bytes combined into a single string. It is the programmer's job to manually parse boundaries. Furthermore, pipes cannot prioritize data; everything is strictly First-In, First-Out. If you are building a real-time trading engine, and a \"Cancel Order\" message arrives behind 5,000 \"Buy\" messages, the Cancel message must wait. We need a structure that preserves explicit message boundaries and honors message priority. We achieve this with <strong>POSIX Message Queues</strong>.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day31-t3-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day31-t3-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;mqueue.h&gt;</span>\n\n<span class=\"syntax-ty\">mqd_t</span> mq = mq_open(<span class=\"syntax-str\">\"/my_queue\"</span>, O_CREAT | O_RDWR, 0666, NULL);\n\n<span class=\"syntax-kw\">char</span> msg[] = <span class=\"syntax-str\">\"CRITICAL_ALERT\"</span>;\nmq_send(mq, msg, <span class=\"syntax-kw\">sizeof</span>(msg), 10); // Priority 10\n\nmq_receive(mq, buffer, msg_len, &amp;prio);",
+          "description": "The robust POSIX interface for prioritized, boundary-preserving datagram transmission.",
+          "parameters": [
+            { "name": "mq_open", "type": "Function", "description": "Creates or opens a queue. Note that POSIX queue names MUST begin with a slash (/) and cannot contain other slashes." },
+            { "name": "mq_send", "type": "Function", "description": "Pushes a distinct message onto the queue. The 4th argument is an integer Priority." },
+            { "name": "mq_receive", "type": "Function", "description": "Pops the oldest, highest-priority message off the queue perfectly preserving its original byte count." }
+          ],
+          "returns": { "type": "mqd_t", "description": "A descriptor handle similar to a File Descriptor." },
+          "complexity": "Slightly heavier overhead than Pipes due to tracking message boundaries and priority sorting.",
+          "exceptions": "Requires linking with the Real-Time library (-lrt compiler flag)."
+        },
+        {
+          "type": "callout",
+          "block_id": "day31-t3-callout-laws",
+          "variant": "danger",
+          "color": "var(--danger-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>The System V Banishment:</strong> UNIX has an older, highly deprecated IPC standard called System V (SysV). This involves functions like <code>msgget()</code>, <code>msgsnd()</code>, and <code>msgrcv()</code>. <strong>You are forbidden from writing new code using System V IPC.</strong> It has no standard file descriptor integration, relies on catastrophic global integer keys, and behaves wildly across OS flavors. You MUST exclusively utilize the modern <code>mq_*</code> POSIX Message Queue API.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day31-t3-sec-mechanics",
+          "title": "Internal Mechanics: Priority Sorting"
+        },
+        {
+          "type": "text",
+          "block_id": "day31-t3-txt-mechanics",
+          "content": "<p>Unlike a Pipe which appends bytes to the tail of a buffer, <code>mq_send()</code> inserts a distinct object into a sorted Kernel list. If the queue contains 100 messages with Priority 0, and you inject a new message with Priority 10, the OS Kernel instantly inserts that message at the very front of the queue. The very next <code>mq_receive()</code> call is guaranteed to extract the Priority 10 message. Furthermore, <code>mq_receive()</code> fails with <code>EMSGSIZE</code> if the destination buffer is not large enough to hold the maximum possible message size defined by the queue, completely eliminating partial-read buffer vulnerabilities.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day31-t3-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day31-t3-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "What is the primary architectural advantage of a POSIX Message Queue over a Named Pipe (FIFO)?",
+              "options": [
+                { "id": "t3-q1-a", "text": "Message queues exist on the hard drive, providing persistence across reboots.", "is_correct": false, "explanation": "Both reside predominantly in RAM and vanish if unlinked." },
+                { "id": "t3-q1-b", "text": "Pipes are unstructured byte streams, susceptible to partial reads and accidental concatenation. Message Queues preserve strict message boundaries (datagrams) and allow high-priority messages to jump to the front of the queue.", "is_correct": true, "explanation": "This structured routing guarantees that complex application states can be passed safely without manual Application-Layer boundary parsing." },
+                { "id": "t3-q1-c", "text": "Message Queues don't require the Kernel to allocate memory.", "is_correct": false, "explanation": "Both allocate Kernel memory." },
+                { "id": "t3-q1-d", "text": "Message Queues can transmit arbitrary C pointers between isolated processes.", "is_correct": false, "explanation": "Transmitting raw pointers across isolated processes is always fatal; memory maps differ." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

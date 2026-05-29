@@ -1,0 +1,665 @@
+{
+  "day": 3,
+  "module": "1: Professional Environment and Core Fundamentals",
+  "topics": [
+    {
+      "header_hub": {
+        "title": "Integer Types and Signedness",
+        "category": "Core C",
+        "complexity": "Intermediate",
+        "standard": "C89/C99",
+        "read_time": 25,
+        "prerequisites": ["day-1-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day3-t1-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day3-t1-txt-strategic-problem",
+          "content": "<p>Hardware registers are built with fixed physical widths (8, 16, 32, or 64 bits). C was designed to abstract these registers using types like <code>char</code>, <code>short</code>, <code>int</code>, and <code>long</code>. However, the C standard does not guarantee exact bit widths for these types, only minimums (e.g., an <code>int</code> must be at least 16 bits). This architectural ambiguity leads to devastating portability bugs: a <code>long</code> is 32 bits on a Windows 64-bit machine (LLP64), but 64 bits on a Linux 64-bit machine (LP64). Furthermore, implicitly mixing signed and unsigned memory creates catastrophic integer promotion bugs that hackers actively exploit.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t1-sec-api",
+          "title": "API Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day3-t1-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;limits.h&gt;</span>\nINT_MAX, UINT_MAX, LONG_MAX",
+          "description": "Macros defining the maximum and minimum values representable by standard integer types on the target architecture.",
+          "parameters": [
+            { "name": "Standard Types", "type": "char, short, int, long, long long", "description": "Guaranteed minimum widths: 8, 16, 16, 32, 64 bits respectively." },
+            { "name": "Signedness", "type": "signed | unsigned", "description": "Modifies whether the Most Significant Bit (MSB) represents a negative sign or is used for raw magnitude." }
+          ],
+          "returns": { "type": "N/A", "description": "Evaluated at compile-time." },
+          "complexity": "O(1) Memory layout boundaries.",
+          "exceptions": "Signed integer overflow results in strict Undefined Behavior (UB)."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t1-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day3-t1-txt-mechanics",
+          "content": "<p>Modern CPUs encode negative integers using <strong>Two's Complement</strong>. To negate a binary number, the CPU flips all bits and adds 1. This brilliant mathematical hack allows the ALU (Arithmetic Logic Unit) to use the exact same circuitry for addition and subtraction. However, it means the MSB (Most Significant Bit) acts as the sign flag. If a signed 8-bit integer (<code>01111111</code> or 127) is incremented by 1, it becomes <code>10000000</code>. Because the sign bit is now flipped, the CPU interprets it as -128. This is Integer Overflow.</p>"
+        },
+        {
+          "type": "memory_map",
+          "block_id": "day3-t1-mem-map",
+          "layout_data": [
+            { "address": "Unsigned 255", "segment": "1111 1111", "color": "var(--success-border)", "value": "All bits act as magnitude (128+64+32+16+8+4+2+1)." },
+            { "address": "Signed -1", "segment": "1111 1111", "color": "var(--danger-border)", "value": "MSB (1) indicates negative. Two's complement decodes this as -1." },
+            { "address": "Signed 127", "segment": "0111 1111", "color": "var(--accent)", "value": "Maximum positive value for an 8-bit signed integer." },
+            { "address": "Signed -128", "segment": "1000 0000", "color": "var(--danger-border)", "value": "Result of adding 1 to 127. Catastrophic overflow." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t1-sec-cli",
+          "title": "System Interaction"
+        },
+        {
+          "type": "cli_session",
+          "block_id": "day3-t1-cli-execution",
+          "lines": [
+            { "type": "command", "prompt": "root@container:/#", "content": "cat overflow.c" },
+            { "type": "output", "content": "int main() { int x = 2147483647; x = x + 1; return x; }" },
+            { "type": "command", "prompt": "root@container:/#", "content": "gcc -Wall -Wextra overflow.c -fsanitize=undefined" },
+            { "type": "command", "prompt": "root@container:/#", "content": "./a.out" },
+            { "type": "output_error", "content": "overflow.c:2: runtime error: signed integer overflow: 2147483647 + 1 cannot be represented in type 'int'" }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t1-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day3-t1-cb-basic",
+          "language": "c",
+          "header": "1. Integer Promotion Danger",
+          "code": "#include &lt;stdio.h&gt;\n\nint main() {\n    int signed_val = -5;\n    unsigned int unsigned_val = 10;\n    \n    // DANGER: When comparing signed and unsigned, C implicitly \n    // promotes the signed int to unsigned. -5 becomes 4294967291.\n    // Therefore, -5 > 10 evaluates to TRUE.\n    if (signed_val > unsigned_val) {\n        printf(\"Mathematics is broken. -5 is greater than 10.\\n\");\n    }\n    return 0;\n}"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day3-t1-cb-limits",
+          "language": "c",
+          "header": "2. Safe Arithmetic Checking",
+          "code": "#include &lt;limits.h&gt;\n#include &lt;stdio.h&gt;\n#include &lt;stdbool.h&gt;\n\n// Safe addition function preventing Undefined Behavior\nbool safe_add(int a, int b, int *result) {\n    if (a > 0 && b > INT_MAX - a) {\n        // Positive overflow would occur\n        return false;\n    }\n    if (a < 0 && b < INT_MIN - a) {\n        // Negative underflow would occur\n        return false;\n    }\n    *result = a + b;\n    return true;\n}"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day3-t1-cb-char",
+          "language": "c",
+          "header": "3. The 'char' Trap",
+          "code": "#include &lt;stdio.h&gt;\n\nvoid char_trap() {\n    // The C standard does NOT dictate if 'char' is signed or unsigned.\n    // On x86 it defaults to signed, on ARM it often defaults to unsigned.\n    char c = 200; \n    \n    // If char is signed, 200 overflows and c equals -56.\n    // If char is unsigned, c equals 200.\n    // Never use raw 'char' for math. Always specify 'signed char' or 'unsigned char'.\n    printf(\"Value: %d\\n\", c);\n}"
+        },
+        {
+          "type": "callout",
+          "block_id": "day3-t1-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Unsigned for Bitwise:</strong> Never perform bitwise shifts (<code>&lt;&lt;</code>, <code>&gt;&gt;</code>) on signed integers. Shifting negative numbers causes implementation-defined behavior (arithmetic vs logical shifts). Always use <code>unsigned</code> for bit masking.</li><li><strong>Never Mix Signed/Unsigned:</strong> Compile with <code>-Wsign-compare</code> to catch implicit type coercions. Mixing them in loops or comparisons leads to infinite loops or logic inversions.</li><li><strong>Char is for Text Only:</strong> Use plain <code>char</code> exclusively for C-strings. If you need a 1-byte integer for math or binary data, explicitly use <code>unsigned char</code> or <code>signed char</code>.</li><li><strong>Defensive Addition:</strong> Before adding two untrusted signed integers from an external payload, you must algebraically verify they won't breach <code>INT_MAX</code> or <code>INT_MIN</code>.</li><li><strong>Understand UBSan:</strong> Signed overflow is Undefined Behavior, meaning the compiler is allowed to delete code assuming overflow never happens. Catch this in CI/CD using UBSan (<code>-fsanitize=undefined</code>).</li></ul>"
+        },
+        {
+          "type": "callout",
+          "block_id": "day3-t1-callout-antipatterns",
+          "variant": "danger",
+          "color": "var(--danger-border)",
+          "title": "Fatal Anti-Patterns",
+          "content": "<ul><li><strong>Implicit Type Promotion:</strong> Writing <code>unsigned int i; for (i = 10; i &gt;= 0; i--)</code>. Because <code>i</code> is unsigned, when it reaches 0 and is decremented, it wraps around to <code>4294967295</code>. The condition <code>i &gt;= 0</code> is eternally true.</li><li><strong>Assuming Pointer Sizes:</strong> Casting a pointer to an <code>int</code>. On 64-bit systems, pointers are 64 bits, but <code>int</code> is typically 32 bits. This cleanly chops the top 32 bits off the memory address, causing a segfault.</li><li><strong>Relying on Overflow:</strong> Writing <code>if (a + 10 &lt; a)</code> to check for overflow. The compiler knows signed overflow is UB, assumes it's impossible, and optimizes the check out completely, deleting your security guard.</li><li><strong>Using 'long' for IPC:</strong> Passing a <code>long</code> struct via a network socket to a different OS. Windows parses it as 4 bytes, Linux parses it as 8 bytes, corrupting the entire payload.</li><li><strong>Division by Negative One:</strong> Performing <code>INT_MIN / -1</code>. Because <code>INT_MAX</code> is one less than the absolute value of <code>INT_MIN</code>, the result cannot fit in a signed integer, causing a hardware CPU fault (SIGFPE).</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t1-sec-challenges",
+          "title": "Industrial Challenges"
+        },
+        {
+          "type": "text",
+          "block_id": "day3-t1-txt-challenges",
+          "content": "<ul><li><strong>The Year 2038 Bug (Y2K38):</strong> Legacy 32-bit POSIX systems define <code>time_t</code> as a signed 32-bit integer representing seconds since 1970. On Jan 19, 2038, it will exceed <code>INT_MAX</code>, wrap around to a negative number, and crash databases globally.</li><li><strong>Cross-Platform ABI Drift:</strong> Code written natively on Linux LP64 often breaks when compiled for Windows LLP64 because developers mistakenly assume <code>long</code> is always large enough to hold a pointer.</li><li><strong>Vulnerability Research:</strong> Hackers exploit integer overflows in `malloc` calls. Passing a carefully crafted oversized size triggers an overflow wrapping to a tiny number, allocating a tiny buffer. The hacker then copies massive data into it, triggering a remote code execution buffer overflow.</li><li><strong>Compiler Optimization Hostility:</strong> Code behaving perfectly under <code>-O0</code> suddenly crashing under <code>-O3</code> because the aggressive optimizer detected and excised pathways relying on Undefined Behavior overflow.</li><li><strong>Legacy API Contracts:</strong> Standard library functions like `strlen` return `size_t` (unsigned), but functions like `read()` return `ssize_t` (signed) to allow `-1` for errors, forcing constant, careful casting in systems code.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t1-sec-silicon",
+          "title": "The Silicon Bridge"
+        },
+        {
+          "type": "text",
+          "block_id": "day3-t1-txt-silicon",
+          "content": "<p>When a smaller integer is copied into a larger register (e.g., 16-bit <code>short</code> into 32-bit <code>int</code>), the CPU uses specific instructions. If the value is unsigned, it uses <strong>Zero Extension</strong> (<code>movzx</code>), padding the new upper bits with zeros. If the value is signed, it uses <strong>Sign Extension</strong> (<code>movsx</code>), duplicating the sign bit across all new upper bits to mathematically preserve the negative value. A mistake here completely changes the number.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day3-t1-cb-assembly",
+          "language": "nasm",
+          "header": "Assembly Verification (Sign vs Zero Extension)",
+          "code": "; C Code: int i = (int)my_short;\nmovsx eax, WORD PTR [rbp-2]  ; Move with Sign Extension. -5 remains -5.\n\n; C Code: unsigned int u = (unsigned int)my_unsigned_short;\nmovzx eax, WORD PTR [rbp-4]  ; Move with Zero Extension. 65000 remains 65000."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t1-sec-qa",
+          "title": "Mastery Q&A"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day3-t1-qa-mastery",
+          "items": [
+            { "question": "Why does Two's Complement exist?", "answer": "In simpler representations (like Sign-Magnitude), there are two zeros (+0 and -0), which complicates logic. Two's complement eliminates negative zero and allows the CPU's adder circuits to perform subtraction by simply adding negative numbers natively." },
+            { "question": "What is Integer Promotion in C?", "answer": "In C, mathematical operations are never performed on types smaller than an `int`. If you add two `char` variables, the compiler implicitly promotes both to `int`, adds them, and then truncates the result back down to `char`." },
+            { "question": "Why is unsigned overflow defined but signed overflow undefined?", "answer": "The C standard specifies that unsigned integers obey modulo arithmetic (like a clock wrapping around). However, because C historically ran on diverse hardware (some using One's Complement, others Two's Complement), the committee couldn't guarantee how negative overflow would physically behave, rendering it strictly Undefined Behavior." },
+            { "question": "What happens if I write `unsigned int x = -1;`?", "answer": "It is perfectly legal syntax. The compiler interprets the bit pattern of -1 (which is all 1s in two's complement) as an unsigned integer, resulting in the maximum possible value for that width (e.g., 4,294,967,295 on 32-bit)." },
+            { "question": "How do you definitively know if `char` is signed on your current target architecture?", "answer": "Include `<limits.h>` and check if `CHAR_MIN` is equal to 0. If it is 0, `char` is unsigned. If it is negative, `char` is signed." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t1-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day3-t1-quiz-mastery",
+          "time_limit_seconds": 375,
+          "questions": [
+            {
+              "question": "What is the result of evaluating the expression `-1 > 1U` in C?",
+              "options": [
+                { "id": "t1-q1-a", "text": "False. -1 is mathematically less than 1.", "is_correct": false, "explanation": "In standard math, yes. In C's type system, no." },
+                { "id": "t1-q1-b", "text": "True. The signed integer is implicitly promoted to unsigned, making its bits evaluate to the maximum integer value.", "is_correct": true, "explanation": "When mixing signed and unsigned, the signed type is coerced to unsigned. -1 becomes UINT_MAX (4,294,967,295), which is greater than 1." },
+                { "id": "t1-q1-c", "text": "Compiler Error.", "is_correct": false, "explanation": "It issues a warning with -Wsign-compare, but it is legal C." },
+                { "id": "t1-q1-d", "text": "Undefined Behavior.", "is_correct": false, "explanation": "Type promotion rules are rigidly defined by the C standard, even if they yield unintuitive results." }
+              ]
+            },
+            {
+              "question": "Why is the loop `for (unsigned int i = 10; i >= 0; i--)` an infinite loop?",
+              "options": [
+                { "id": "t1-q2-a", "text": "Because `i` wraps around to `UINT_MAX` after decrementing past 0, so it is always mathematically >= 0.", "is_correct": true, "explanation": "Unsigned integers cannot hold negative numbers. They wrap around via modulo arithmetic, meaning the exit condition `i < 0` can never physically be met." },
+                { "id": "t1-q2-b", "text": "Because 0 is not a valid unsigned value.", "is_correct": false, "explanation": "0 is perfectly valid for unsigned integers." },
+                { "id": "t1-q2-c", "text": "Because decrementing unsigned values causes a CPU fault.", "is_correct": false, "explanation": "Unsigned underflow is well-defined modulo behavior, not a fault." },
+                { "id": "t1-q2-d", "text": "The compiler optimizes the loop away.", "is_correct": false, "explanation": "It won't optimize it away; it will lock the CPU in an infinite loop." }
+              ]
+            },
+            {
+              "question": "You are writing network code and need a guaranteed 32-bit integer regardless of the OS. Which standard type should you use?",
+              "options": [
+                { "id": "t1-q3-a", "text": "int", "is_correct": false, "explanation": "int is only guaranteed to be at least 16 bits." },
+                { "id": "t1-q3-b", "text": "long", "is_correct": false, "explanation": "long is 32-bit on Windows and 64-bit on Linux." },
+                { "id": "t1-q3-c", "text": "int32_t (via stdint.h)", "is_correct": true, "explanation": "stdint.h provides exact-width integer types that guarantee the exact bit width on any POSIX/C99 compliant system." },
+                { "id": "t1-q3-d", "text": "long long", "is_correct": false, "explanation": "long long is guaranteed to be at least 64 bits." }
+              ]
+            },
+            {
+              "question": "What assembly instruction is utilized when casting a signed 8-bit integer into a 32-bit integer to ensure negative numbers remain negative?",
+              "options": [
+                { "id": "t1-q4-a", "text": "Zero Extension (movzx)", "is_correct": false, "explanation": "Zero extension would pad with zeros, turning -1 (11111111) into 255 (00000000 00000000 00000000 11111111)." },
+                { "id": "t1-q4-b", "text": "Sign Extension (movsx)", "is_correct": true, "explanation": "Sign extension duplicates the MSB (the sign bit) across all the newly added upper bits, mathematically preserving the Two's Complement negative value." },
+                { "id": "t1-q4-c", "text": "Bitwise Shift Left (shl)", "is_correct": false, "explanation": "Shifting alters the fundamental magnitude of the value." },
+                { "id": "t1-q4-d", "text": "Arithmetic Logic Addition (add)", "is_correct": false, "explanation": "Moving registers doesn't require addition." }
+              ]
+            },
+            {
+              "question": "Why is `if (a + b < a)` a terrible way to check for signed integer overflow?",
+              "options": [
+                { "id": "t1-q5-a", "text": "It requires floating-point math.", "is_correct": false, "explanation": "It uses standard integer ALUs." },
+                { "id": "t1-q5-b", "text": "Signed overflow is Undefined Behavior. Aggressive compiler optimizers will assume overflow never occurs and silently delete this entire if-block.", "is_correct": true, "explanation": "Because the standard says signed overflow 'cannot' happen, compilers (like GCC -O3) deduce `a + b < a` is an impossible algebraic state if b is positive, stripping the guard code entirely." },
+                { "id": "t1-q5-c", "text": "It throws a syntax error in C99.", "is_correct": false, "explanation": "It is perfectly valid syntax." },
+                { "id": "t1-q5-d", "text": "It only works on Big-Endian systems.", "is_correct": false, "explanation": "Overflow logic is independent of byte endianness." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Floating Point and Math Types",
+        "category": "Core C",
+        "complexity": "Advanced",
+        "standard": "C99/IEEE 754",
+        "read_time": 25,
+        "prerequisites": ["day-1-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day3-t2-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day3-t2-txt-strategic-problem",
+          "content": "<p>Unlike integers, fractions (like 0.1) cannot be represented natively in binary base-2 memory with perfect accuracy. To calculate physics, graphics, and scientific models, hardware engineers devised the IEEE 754 standard: splitting bits into a Sign, an Exponent, and a fractional Mantissa. Systems engineers using <code>float</code> and <code>double</code> in C must confront the reality that these are non-absolute approximations. Comparing two floating-point numbers directly is a fatal anti-pattern, and mixing floats with integers without understanding CPU rounding penalties leads to catastrophic performance drops and orbital trajectory bugs.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t2-sec-api",
+          "title": "API Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day3-t2-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;float.h&gt;</span>\n<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;complex.h&gt;</span>",
+          "description": "Defines floating point limits, epsilon precision boundaries, and introduces complex mathematical types.",
+          "parameters": [
+            { "name": "float", "type": "Type", "description": "Single precision (typically 32-bit). ~7 decimal digits of accuracy." },
+            { "name": "double", "type": "Type", "description": "Double precision (typically 64-bit). ~15 decimal digits of accuracy." },
+            { "name": "_Complex", "type": "Keyword", "description": "C99 type to handle imaginary mathematics (e.g., double _Complex)." }
+          ],
+          "returns": { "type": "N/A", "description": "Evaluated at compile-time/runtime." },
+          "complexity": "O(1) memory, but FPU math cycles are slower than ALU integer math.",
+          "exceptions": "Can generate hardware exceptions (SIGFPE) for divide-by-zero, or yield quiet NaNs."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t2-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day3-t2-txt-mechanics",
+          "content": "<p>A 32-bit <code>float</code> assigns 1 bit for the Sign, 8 bits for the Exponent (shifting the decimal point), and 23 bits for the Mantissa (the actual fractional value). Because 0.1 is a repeating fraction in binary (just like 1/3 is in base-10), it gets truncated. Thus, <code>0.1 + 0.2</code> physically evaluates to <code>0.30000001192...</code>. Special bit patterns are reserved for edge cases: Infinity (dividing by zero floats) and NaN (Not a Number, for calculating the square root of -1).</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day3-t2-svg-mechanics",
+          "caption": "Memory layout of an IEEE 754 32-bit Single Precision Float.",
+          "alt_text": "Visual block showing 1 sign bit, 8 exponent bits, and 23 mantissa bits.",
+          "svg_code": "<svg viewBox='0 0 600 100' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='100' fill='var(--bg-card)'/><g transform='translate(50, 30)'><rect x='0' y='0' width='20' height='40' fill='rgba(239, 68, 68, 0.2)' stroke='var(--danger-border)' stroke-width='2'/><text x='10' y='25' fill='var(--text-primary)' font-family='monospace' font-size='14' text-anchor='middle'>S</text><text x='10' y='60' fill='var(--danger-border)' font-family='sans-serif' font-size='10' text-anchor='middle'>1 bit</text><rect x='25' y='0' width='120' height='40' fill='rgba(59, 130, 246, 0.2)' stroke='var(--accent)' stroke-width='2'/><text x='85' y='25' fill='var(--text-primary)' font-family='monospace' font-size='14' text-anchor='middle'>Exponent</text><text x='85' y='60' fill='var(--accent)' font-family='sans-serif' font-size='10' text-anchor='middle'>8 bits</text><rect x='150' y='0' width='350' height='40' fill='rgba(16, 185, 129, 0.2)' stroke='var(--success-border)' stroke-width='2'/><text x='325' y='25' fill='var(--text-primary)' font-family='monospace' font-size='14' text-anchor='middle'>Mantissa (Fraction)</text><text x='325' y='60' fill='var(--success-border)' font-family='sans-serif' font-size='10' text-anchor='middle'>23 bits</text></g></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t2-sec-cli",
+          "title": "System Interaction"
+        },
+        {
+          "type": "cli_session",
+          "block_id": "day3-t2-cli-execution",
+          "lines": [
+            { "type": "command", "prompt": "root@container:/#", "content": "gcc math_test.c" },
+            { "type": "output_error", "content": "/usr/bin/ld: /tmp/ccXXXX.o: undefined reference to `sqrt'" },
+            { "type": "command", "prompt": "root@container:/#", "content": "gcc math_test.c -lm" },
+            { "type": "output", "content": "# Success. The -lm flag links libm.so, required for math.h functions." },
+            { "type": "command", "prompt": "root@container:/#", "content": "./a.out" },
+            { "type": "output", "content": "0.1 + 0.2 == 0.3? FALSE" }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t2-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day3-t2-cb-epsilon",
+          "language": "c",
+          "header": "1. Safe Floating Point Comparison (Epsilon)",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;math.h&gt;\n#include &lt;float.h&gt; // Provides FLT_EPSILON\n\nbool is_equal(float a, float b) {\n    // NEVER use a == b. \n    // Measure the absolute difference and check if it's smaller than EPSILON.\n    if (fabs(a - b) < FLT_EPSILON) {\n        return true;\n    }\n    return false;\n}"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day3-t2-cb-nan",
+          "language": "c",
+          "header": "2. Handling NaN (Not a Number)",
+          "code": "#include &lt;math.h&gt;\n#include &lt;stdio.h&gt;\n\nvoid check_nan() {\n    double result = sqrt(-1.0);\n    \n    // NaN poisons all calculations. NaN + 5 = NaN.\n    // Bizarrely, IEEE 754 decrees that NaN != NaN.\n    if (result == result) {\n        printf(\"Normal number.\\n\");\n    } else {\n        // If a variable does not equal itself, it is mathematically NaN.\n        // Alternatively, use isnan(result) from <math.h>\n        printf(\"Error: Calculation yielded NaN.\\n\");\n    }\n}"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day3-t2-cb-complex",
+          "language": "c",
+          "header": "3. Complex Math (C99)",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;complex.h&gt;\n\nvoid run_complex_math() {\n    // C99 standardizes complex numbers for electrical engineering/physics\n    double complex z1 = 1.0 + 3.0 * I;\n    double complex z2 = 1.0 - 4.0 * I;\n    \n    double complex sum = z1 + z2;\n    \n    // creal extracts the real part, cimag extracts the imaginary part\n    printf(\"Sum: %.1f + %.1fi\\n\", creal(sum), cimag(sum));\n}"
+        },
+        {
+          "type": "callout",
+          "block_id": "day3-t2-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Epsilon Check:</strong> Never use <code>==</code> or <code>!=</code> with floats. Always compare the absolute difference against <code>FLT_EPSILON</code> or <code>DBL_EPSILON</code>.</li><li><strong>Never Use Floats for Money:</strong> Floating point inexactness will accumulate and cause missing pennies. Always use integers representing the smallest unit (e.g., <code>int cents = 1050;</code> for $10.50).</li><li><strong>Float Literals:</strong> Append an <code>f</code> to float literals (e.g., <code>3.14f</code>). Writing <code>float x = 3.14;</code> forces the compiler to treat <code>3.14</code> as an 8-byte <code>double</code>, then perform an expensive truncation cast to fit it into the 4-byte <code>float</code>.</li><li><strong>Link Math Library:</strong> When using <code>&lt;math.h&gt;</code> functions like <code>sqrt()</code> or <code>pow()</code>, you MUST append <code>-lm</code> to your GCC compiler command to link the math library dynamically.</li><li><strong>Use isnan():</strong> Protect critical control paths from poisoned math. Validate untrusted float inputs using <code>isnan()</code> and <code>isinf()</code> before multiplying them into your simulation logic.</li></ul>"
+        },
+        {
+          "type": "callout",
+          "block_id": "day3-t2-callout-antipatterns",
+          "variant": "danger",
+          "color": "var(--danger-border)",
+          "title": "Fatal Anti-Patterns",
+          "content": "<ul><li><strong>NaN Poisoning:</strong> Assuming <code>NaN == NaN</code> is true. IEEE 754 explicitly defines NaN as unequal to everything, including itself.</li><li><strong>Loop Counters as Floats:</strong> Writing <code>for(float i=0; i != 1.0; i+=0.1)</code>. Because 0.1 accumulates precision errors, <code>i</code> will hit <code>0.9999999</code>, then <code>1.0000001</code>, skipping the <code>!= 1.0</code> termination and looping forever.</li><li><strong>Mixing Ints and Floats Unnecessarily:</strong> In tight loops, writing <code>float_val = int_array[i] * 3.14f;</code>. Converting integers to floats takes several CPU cycles. Pre-convert integers if possible.</li><li><strong>Double-to-Float Cast Dropping:</strong> Passing a <code>double</code> into a function expecting a <code>float</code> without an explicit cast. High-order precision bits are silently truncated.</li><li><strong>Assuming Endianness for Mantissas:</strong> Casting a float pointer to an integer pointer to manually read the mantissa bits without accounting for CPU architecture bit-order limits portability.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t2-sec-challenges",
+          "title": "Industrial Challenges"
+        },
+        {
+          "type": "text",
+          "block_id": "day3-t2-txt-challenges",
+          "content": "<ul><li><strong>Fast-Math Compliance Breaches:</strong> Compiling with `-Ofast` enables `-ffast-math`, which disables strict IEEE 754 compliance. It assumes NaN and Infinity don't exist and reorders math operations, breaking algorithms that rely on strict rounding.</li><li><strong>Subnormal Penalty:</strong> When a float approaches zero, it enters 'subnormal' territory. Modern CPUs handle subnormals via Microcode exception handling rather than hardware, causing processing times to spike by 100x. HFT firms flush subnormals to zero explicitly.</li><li><strong>Embedded Missing FPU:</strong> Many microcontrollers (like Cortex-M0) do not have a hardware Floating Point Unit (FPU). Floating-point math is simulated purely in software using hundreds of ALU instructions, annihilating performance.</li><li><strong>Precision Loss in Video Games:</strong> As player coordinates move further from the 0,0 origin in a 32-bit float engine, the gaps between representable floats become larger than the player model, causing severe visual stuttering ('The Far Lands' effect).</li><li><strong>Deterministic Multiplayer:</strong> Floating point rounding implementations differ slightly between Intel and AMD processors. Running identical simulations on different hardware will drift apart, making strict lockstep networked games impossible without fixed-point math.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t2-sec-silicon",
+          "title": "The Silicon Bridge"
+        },
+        {
+          "type": "text",
+          "block_id": "day3-t2-txt-silicon",
+          "content": "<p>Standard integers live in the General Purpose Registers (GPRs like <code>rax</code>) and are processed by the ALU. Floating-point numbers are routed to entirely different hardware: the Floating Point Unit (FPU) or SIMD vector registers (like <code>xmm0</code> to <code>xmm15</code>). When you convert an <code>int</code> to a <code>float</code>, the CPU must physically halt, move the data across internal buses from the GPR to the XMM register, and execute a format conversion instruction (<code>cvtsi2ss</code>), creating a pipeline stall.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day3-t2-cb-assembly",
+          "language": "nasm",
+          "header": "Assembly Verification (FPU vs ALU)",
+          "code": "; Integer addition (ALU)\nadd     eax, edx             ; Takes ~1 clock cycle\n\n; Floating point addition (FPU/SIMD)\naddss   xmm0, xmm1           ; Add Scalar Single-Precision. \n                             ; Hardware must align exponents, add mantissas, and re-normalize. Takes ~3-4 cycles."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t2-sec-qa",
+          "title": "Mastery Q&A"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day3-t2-qa-mastery",
+          "items": [
+            { "question": "Why is 0.1 not exact in binary?", "answer": "Just like 1/3 cannot be represented finitely in decimal (0.333...), 1/10 cannot be represented finitely in base-2 binary (it becomes 0.0001100110011...). The FPU chops it off after 23 bits, leaving a tiny rounding error." },
+            { "question": "What is `double` compared to `float`?", "answer": "`float` is 32 bits (single precision). `double` is 64 bits (double precision), granting 11 bits for the exponent and 52 bits for the mantissa, providing vastly superior accuracy at the cost of memory bandwidth." },
+            { "question": "Why do I get 'undefined reference to sqrt' when I clearly included `<math.h>`?", "answer": "Including `<math.h>` only satisfies the Compiler (cc1) by providing the function declaration. The Linker (ld) still needs the compiled library code. You must pass `-lm` to tell the linker to link the system's `libm.so` math library." },
+            { "question": "Is `_Complex` a struct under the hood?", "answer": "No, C99 implements `_Complex` as a native primitive type. However, its memory layout is strictly guaranteed to be an array of two floats/doubles (real, then imaginary), making it ABI-compatible with structs containing two floats." },
+            { "question": "How can I store money accurately if I can't use floats?", "answer": "Use Fixed-Point math. Store everything in the smallest possible unit as a large integer. For US dollars, store `$10.50` as an `int64_t` representing `1050` cents. Perform all math on integers, and only format it with a decimal point when printing to the UI." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t2-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day3-t2-quiz-mastery",
+          "time_limit_seconds": 375,
+          "questions": [
+            {
+              "question": "Which of the following conditions is mathematically TRUE according to IEEE 754 rules, assuming `float a = sqrt(-1.0);`?",
+              "options": [
+                { "id": "t2-q1-a", "text": "a == 0.0", "is_correct": false, "explanation": "It is Not a Number, not zero." },
+                { "id": "t2-q1-b", "text": "a == a", "is_correct": false, "explanation": "NaN is uniquely defined to never equal itself." },
+                { "id": "t2-q1-c", "text": "a != a", "is_correct": true, "explanation": "Because NaN represents an unrepresentable error state, the standard dictates that NaN is not equal to any value, including itself. This property is often used to detect NaN values." },
+                { "id": "t2-q1-d", "text": "a > a", "is_correct": false, "explanation": "All relational comparisons involving NaN evaluate to false." }
+              ]
+            },
+            {
+              "question": "Why is the loop `for (float f = 0.0f; f != 10.0f; f += 0.1f)` fundamentally flawed?",
+              "options": [
+                { "id": "t2-q2-a", "text": "Because 0.1f cannot be perfectly represented in binary, accumulating precision errors will cause `f` to skip exactly 10.0f, resulting in an infinite loop.", "is_correct": true, "explanation": "The counter will become something like 9.999999f, then 10.09999f, missing the exact `!= 10.0f` cutoff check." },
+                { "id": "t2-q2-b", "text": "Because floats cannot be used in for-loop initializations.", "is_correct": false, "explanation": "They can be used legally, but it is dangerous logically." },
+                { "id": "t2-q2-c", "text": "Because 10.0f is too large to fit in a 32-bit float.", "is_correct": false, "explanation": "Floats can hold values up to ~3.4 x 10^38." },
+                { "id": "t2-q2-d", "text": "Because the FPU will fault when adding decimals to integers.", "is_correct": false, "explanation": "The FPU handles addition natively." }
+              ]
+            },
+            {
+              "question": "What is the consequence of omitting the `f` suffix in the declaration `float val = 3.14;`?",
+              "options": [
+                { "id": "t2-q3-a", "text": "The compiler throws a hard syntax error.", "is_correct": false, "explanation": "It issues a warning with -Wconversion, but is legal." },
+                { "id": "t2-q3-b", "text": "The compiler treats `3.14` as an 8-byte `double` constant, then forces the CPU to truncate it down to a 4-byte `float` at runtime.", "is_correct": true, "explanation": "By default, floating point literals in C are `double`. This causes unnecessary type conversion overhead and potential precision warnings." },
+                { "id": "t2-q3-c", "text": "It treats the value as an integer `3`.", "is_correct": false, "explanation": "The decimal point ensures it is parsed as a float/double." },
+                { "id": "t2-q3-d", "text": "It invokes Undefined Behavior.", "is_correct": false, "explanation": "The truncation is well-defined, just slow and slightly lossy." }
+              ]
+            },
+            {
+              "question": "If you need to strictly compare two floating point variables `a` and `b` for equality in a physics engine, how should it be written?",
+              "options": [
+                { "id": "t2-q4-a", "text": "if (a == b)", "is_correct": false, "explanation": "Direct equality is dangerous due to precision drift." },
+                { "id": "t2-q4-b", "text": "if ((int)a == (int)b)", "is_correct": false, "explanation": "This truncates the decimals entirely, making 3.14 equal to 3.99." },
+                { "id": "t2-q4-c", "text": "if (fabs(a - b) < FLT_EPSILON)", "is_correct": true, "explanation": "This calculates the absolute difference between the floats and checks if it falls within an acceptable margin of error (Epsilon)." },
+                { "id": "t2-q4-d", "text": "if (a === b)", "is_correct": false, "explanation": "=== does not exist in C." }
+              ]
+            },
+            {
+              "question": "In embedded systems without a hardware FPU, what happens if you compile and run code containing floating point multiplication?",
+              "options": [
+                { "id": "t2-q5-a", "text": "The system throws a hardware exception and reboots.", "is_correct": false, "explanation": "Modern GCC toolchains use software emulation." },
+                { "id": "t2-q5-b", "text": "The compiler silently rounds all floats to integers.", "is_correct": false, "explanation": "It maintains floating-point logic." },
+                { "id": "t2-q5-c", "text": "The compiler injects a 'Soft Float' emulation library, using hundreds of slow ALU integer operations to simulate the multiplication.", "is_correct": true, "explanation": "Soft-float guarantees math correctness but absolutely destroys CPU performance, running orders of magnitude slower than an FPU." },
+                { "id": "t2-q5-d", "text": "The compiler refuses to compile the code.", "is_correct": false, "explanation": "It will compile, using the emulated ABI." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "sizeof, const, and stdint.h",
+        "category": "Core C",
+        "complexity": "Intermediate",
+        "standard": "C99/C11",
+        "read_time": 25,
+        "prerequisites": ["day-1-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day3-t3-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day3-t3-txt-strategic-problem",
+          "content": "<p>When interacting with the network, reading binary files, or manipulating kernel registers, assumptions about byte sizes are fatal. You cannot simply read an <code>int</code> off a TCP socket, because the sender's <code>int</code> might be 2 bytes while yours is 4. C99 introduced <code>&lt;stdint.h&gt;</code> to provide rigorously exact types. Additionally, developers need a way to interrogate memory boundaries natively using <code>sizeof</code>, and a mechanism to protect read-only configurations from being accidentally mutated in memory using the <code>const</code> qualifier.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t3-sec-api",
+          "title": "API Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day3-t3-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;stdint.h&gt;</span>\n<span class=\"syntax-kw\">const</span> <span class=\"syntax-ty\">uint32_t</span> max_retries = 5;\n<span class=\"syntax-ty\">size_t</span> s = <span class=\"syntax-kw\">sizeof</span>(max_retries);",
+          "description": "Standardizes memory widths, protects variables from modification, and queries memory layout.",
+          "parameters": [
+            { "name": "uint8_t to uint64_t", "type": "Typedefs", "description": "Guaranteed exact-width unsigned integers (8 to 64 bits)." },
+            { "name": "size_t", "type": "Typedef", "description": "Unsigned integer type capable of holding the maximum size of any object." },
+            { "name": "sizeof", "type": "Operator", "description": "Compile-time operator that yields the size in bytes of a type or variable." },
+            { "name": "const", "type": "Qualifier", "description": "Instructs the compiler/MMU that this data is read-only." }
+          ],
+          "returns": { "type": "N/A", "description": "N/A" },
+          "complexity": "sizeof is evaluated entirely at compile-time (O(0) runtime).",
+          "exceptions": "Writing to const memory via pointer casting causes a hardware Segfault."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t3-sec-mechanics",
+          "title": "Internal Mechanics"
+        },
+        {
+          "type": "text",
+          "block_id": "day3-t3-txt-mechanics",
+          "content": "<p><code>sizeof</code> is not a function; it is a compile-time operator. When you write <code>sizeof(int)</code>, the compiler physically replaces that text with the literal number <code>4</code> in the resulting binary. There is zero runtime overhead. Similarly, <code>const</code> is not just a hint. If a <code>const</code> variable is declared globally, the Linker physically places it into the <code>.rodata</code> (Read-Only Data) segment of the ELF binary. The OS kernel's Memory Management Unit (MMU) locks this page of RAM. If you try to write to it, the hardware triggers a SIGSEGV (Segmentation Fault).</p>"
+        },
+        {
+          "type": "tabbed_content",
+          "block_id": "day3-t3-tabs-stdint",
+          "tabs": [
+            {
+              "tab_label": "stdint.h Types",
+              "content": "<strong>Exact Width Types:</strong><br><code>uint8_t</code>: Exactly 1 Byte (0 to 255)<br><code>uint16_t</code>: Exactly 2 Bytes (0 to 65,535)<br><code>uint32_t</code>: Exactly 4 Bytes (0 to 4.2 Billion)<br><code>uint64_t</code>: Exactly 8 Bytes<br><br><strong>Signed Counterparts:</strong><br><code>int8_t</code>, <code>int16_t</code>, <code>int32_t</code>, <code>int64_t</code>"
+            },
+            {
+              "tab_label": "size_t",
+              "content": "<strong>The Universal Index:</strong><br><code>size_t</code> is technically an alias. On a 32-bit CPU, it is a 32-bit unsigned int. On a 64-bit CPU, it scales to a 64-bit unsigned int.<br><br>It is the <em>only</em> type guaranteed to be large enough to hold the byte size of the largest possible block of memory the CPU can allocate. Always use it for array sizes and loop counters."
+            }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t3-sec-cli",
+          "title": "System Interaction"
+        },
+        {
+          "type": "cli_session",
+          "block_id": "day3-t3-cli-execution",
+          "lines": [
+            { "type": "command", "prompt": "root@container:/#", "content": "cat const_test.c" },
+            { "type": "output", "content": "const int my_val = 999; int main(){}" },
+            { "type": "command", "prompt": "root@container:/#", "content": "gcc const_test.c" },
+            { "type": "command", "prompt": "root@container:/#", "content": "objdump -s -j .rodata a.out" },
+            { "type": "output", "content": "Contents of section .rodata:\n 2000 01000200 e7030000 .... .... \n# The value 999 (0x03e7) is physically baked into the read-only segment." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t3-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day3-t3-cb-sizeof",
+          "language": "c",
+          "header": "1. The sizeof Array Trap",
+          "code": "#include &lt;stdio.h&gt;\n\n// When an array is passed to a function, it 'decays' into a pointer.\nvoid print_size(int arr[]) {\n    // DANGER: This prints 8 (size of a 64-bit pointer), NOT the array size!\n    printf(\"Size in function: %zu\\n\", sizeof(arr)); \n}\n\nint main() {\n    int data[10];\n    // CORRECT: Here it is an array type. Prints 40 (10 elements * 4 bytes).\n    printf(\"Size in main: %zu\\n\", sizeof(data));\n    \n    // Canonical way to get array element count:\n    size_t count = sizeof(data) / sizeof(data[0]); \n    print_size(data);\n    return 0;\n}"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day3-t3-cb-stdint",
+          "language": "c",
+          "header": "2. Exact Networking Types",
+          "code": "#include &lt;stdint.h&gt;\n\n// Defining a strict network payload\nstruct NetworkPacket {\n    uint8_t header_type;     // Guaranteed 1 byte\n    uint32_t payload_length; // Guaranteed 4 bytes\n    uint64_t timestamp;      // Guaranteed 8 bytes\n};\n// By using stdint.h, we ensure this struct takes up the same \n// logical space whether compiled on an ARM router or an x86 server."
+        },
+        {
+          "type": "code_block",
+          "block_id": "day3-t3-cb-const",
+          "language": "c",
+          "header": "3. The Const Pointer Dance",
+          "code": "#include &lt;stdio.h&gt;\n\nvoid const_mechanics() {\n    int x = 5;\n    int y = 10;\n    \n    // 1. Pointer to a const int (The data is locked, pointer can move)\n    const int *ptr1 = &x;\n    // *ptr1 = 6;  // ERROR: Cannot change the data\n    ptr1 = &y;     // OK: Pointer can point to a new address\n\n    // 2. Const pointer to an int (The pointer is locked, data can change)\n    int * const ptr2 = &x;\n    *ptr2 = 6;     // OK: Can mutate the data\n    // ptr2 = &y;  // ERROR: Cannot change the address it points to\n    \n    // 3. Const pointer to a const int (Everything is locked)\n    const int * const ptr3 = &x;\n}"
+        },
+        {
+          "type": "callout",
+          "block_id": "day3-t3-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>Const Correctness:</strong> If a function takes a pointer to read data (but not modify it), you MUST declare the parameter as <code>const int *</code>. This acts as a compiler-enforced API contract that prevents accidental mutations by downstream engineers.</li><li><strong>Mandatory stdint.h:</strong> Banish <code>short</code> and <code>long</code> from your vocabulary when defining structs that map to files, hardware registers, or network protocols. Exclusively use <code>uint16_t</code>, <code>uint32_t</code>, etc.</li><li><strong>Sizeof Types vs Vars:</strong> Prefer <code>sizeof(variable_name)</code> over <code>sizeof(int)</code>. If the variable type changes in the future, the <code>sizeof</code> automatically updates without needing a manual refactor.</li><li><strong>Format Specifier '%zu':</strong> When printing a <code>size_t</code> variable with <code>printf</code>, always use <code>%zu</code>. Using <code>%d</code> will cause warnings and potentially corrupt output on 64-bit systems.</li><li><strong>Right-to-Left Const Reading:</strong> Read declarations backwards. <code>int * const p</code> reads as \"p is a const pointer to an int\". <code>const int * p</code> reads as \"p is a pointer to an int that is const\".</li></ul>"
+        },
+        {
+          "type": "callout",
+          "block_id": "day3-t3-callout-antipatterns",
+          "variant": "danger",
+          "color": "var(--danger-border)",
+          "title": "Fatal Anti-Patterns",
+          "content": "<ul><li><strong>Sizeof Array Decay:</strong> Using <code>sizeof(arr)</code> inside a function where the array was passed as a parameter. It will return the size of the pointer (8 bytes), completely destroying array iteration logic.</li><li><strong>Implicit Int Declarations:</strong> Writing <code>main()</code> or <code>static flag;</code> without a type. This relied on C89's \"implicit int\" rule, which assumes missing types are integers. This is explicitly banned in modern C.</li><li><strong>Casting Away Const:</strong> Using <code>(int *)</code> to forcefully strip the <code>const</code> qualifier off a pointer. If the original data was stored in read-only memory, writing to it causes an instant Segmentation Fault.</li><li><strong>Magic Numbers in Malloc:</strong> Writing <code>malloc(400)</code> instead of <code>malloc(100 * sizeof(int))</code>. If the struct size changes, the hardcoded memory allocation causes a massive buffer overflow.</li><li><strong>Assuming Pointer Sizes:</strong> Assuming <code>sizeof(int *) == sizeof(int)</code>. Pointers are 64 bits on modern systems, while ints remain 32 bits.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t3-sec-challenges",
+          "title": "Industrial Challenges"
+        },
+        {
+          "type": "text",
+          "block_id": "day3-t3-txt-challenges",
+          "content": "<ul><li><strong>API Contract Hell:</strong> Integrating with legacy C codebases where function signatures don't use <code>const</code>. You are forced to pass your perfectly protected <code>const</code> data into a black-box function, requiring dirty casts and hoping the external library doesn't corrupt your memory.</li><li><strong>Embedded .rodata Limits:</strong> Placing massive lookup tables in <code>const</code> arrays forces the Linker to map them to Flash memory (ROM). Microcontrollers have limited Flash, and fetching data from Flash is often slower than fetching from RAM.</li><li><strong>Variable Length Array (VLA) Sizeof:</strong> In C99, <code>sizeof</code> on a VLA is the <em>only</em> time <code>sizeof</code> is evaluated at runtime instead of compile-time, inserting hidden overhead into performance-critical paths.</li><li><strong>Struct Padding Quirks:</strong> <code>sizeof(struct X)</code> rarely equals the sum of its internal <code>stdint.h</code> types. The compiler injects invisible padding bytes to align variables with CPU architecture, confusing binary file parsers.</li><li><strong>Third-Party Type Clashes:</strong> Different libraries often redefine basic types (e.g., Apple's <code>SInt32</code> vs Linux <code>int32_t</code> vs Windows <code>DWORD</code>). Bridging these APIs requires extensive wrapper layers to prevent compiler warnings.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t3-sec-silicon",
+          "title": "The Silicon Bridge"
+        },
+        {
+          "type": "text",
+          "block_id": "day3-t3-txt-silicon",
+          "content": "<p>The <code>sizeof</code> operator does not exist at runtime. During the Compiler (cc1) stage, the AST replaces the <code>sizeof(int)</code> token with the hardcoded integer <code>4</code>. The CPU never calculates sizes. Similarly, global <code>const</code> variables are flagged in the ELF binary header. When the OS loads the binary into RAM, it configures the hardware Memory Management Unit (MMU) to mark that specific physical RAM page as Read-Only. An illegal write physically trips an interrupt in the CPU hardware, trapping execution to the Kernel.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day3-t3-cb-assembly",
+          "language": "nasm",
+          "header": "Assembly Verification (Compile-Time Sizeof)",
+          "code": "; C Code: int bytes = sizeof(int) * 10;\n; The CPU performs NO multiplication at runtime. The compiler pre-calculated 4 * 10 = 40.\nmov     DWORD PTR [rbp-4], 40"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t3-sec-qa",
+          "title": "Mastery Q&A"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day3-t3-qa-mastery",
+          "items": [
+            { "question": "Why is `size_t` unsigned?", "answer": "Because a memory block cannot have a negative size. Making it unsigned doubles the maximum possible addressable size it can hold, allowing a 64-bit `size_t` to index up to 16 Exabytes of theoretical RAM." },
+            { "question": "Does `const` mean the variable is stored in ROM/Read-Only memory?", "answer": "Only if it is a global or static variable. If you declare `const int x = 5;` locally inside a function, it is stored on the standard Read/Write Stack. `const` in that scenario is purely a compiler-enforced rule, not a hardware-enforced MMU lock." },
+            { "question": "What is `uintptr_t`?", "answer": "Defined in `<stdint.h>`, it is an unsigned integer guaranteed to be the exact same size as a pointer. It is used when you need to perform deep hardware math on memory addresses without triggering compiler warnings about pointer-to-int cast sizes." },
+            { "question": "Why did C99 introduce `int_fast32_t` alongside `int32_t`?", "answer": "Some bizarre CPU architectures are actually slower at processing 32-bit integers than 64-bit integers. `int_fast32_t` tells the compiler: 'Give me the fastest integer type that is AT LEAST 32 bits wide.' `int32_t` says 'Give me EXACTLY 32 bits.'" },
+            { "question": "If `sizeof` is resolved at compile time, how does it work with dynamic `malloc` allocations?", "answer": "It doesn't! If you `malloc` a 100-byte block and assign it to an `int *p`, calling `sizeof(p)` returns 8 (the size of the pointer), not 100. The compiler has no idea how much dynamic memory the pointer owns." }
+          ]
+        },
+        {
+          "type": "section_title",
+          "block_id": "day3-t3-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day3-t3-quiz-mastery",
+          "time_limit_seconds": 375,
+          "questions": [
+            {
+              "question": "What happens at runtime when the CPU executes `size_t s = sizeof(int) * 10;`?",
+              "options": [
+                { "id": "t3-q1-a", "text": "The CPU asks the OS for the size of an int, multiplies it by 10, and assigns it.", "is_correct": false, "explanation": "The OS is not involved in data type sizes." },
+                { "id": "t3-q1-b", "text": "The CPU multiplies 4 by 10.", "is_correct": false, "explanation": "The multiplication is entirely optimized out." },
+                { "id": "t3-q1-c", "text": "Nothing. The compiler pre-calculated `40` at compile time. The CPU simply executes a single instruction storing the literal `40`.", "is_correct": true, "explanation": "sizeof is an operator evaluated strictly during the compiler stage. It introduces zero runtime overhead." },
+                { "id": "t3-q1-d", "text": "The CPU measures the pointer size of an array of 10 ints.", "is_correct": false, "explanation": "There are no arrays involved in this statement." }
+              ]
+            },
+            {
+              "question": "You define `void process_data(int buffer[]);` and call `sizeof(buffer)` inside the function. What does it return on a 64-bit system?",
+              "options": [
+                { "id": "t3-q2-a", "text": "The exact size of the array passed in.", "is_correct": false, "explanation": "Arrays 'decay' to pointers when passed as function arguments." },
+                { "id": "t3-q2-b", "text": "8", "is_correct": true, "explanation": "Because array parameters decay to pointers, `buffer` is actually just an `int *`. On a 64-bit system, a pointer is 8 bytes." },
+                { "id": "t3-q2-c", "text": "4", "is_correct": false, "explanation": "4 is the size of a single integer, not a 64-bit pointer." },
+                { "id": "t3-q2-d", "text": "0", "is_correct": false, "explanation": "Pointers always have a size." }
+              ]
+            },
+            {
+              "question": "Read this declaration: `int * const ptr;`. What does it mean?",
+              "options": [
+                { "id": "t3-q3-a", "text": "ptr is a pointer to a constant integer. The integer cannot be modified.", "is_correct": false, "explanation": "That would be `const int *ptr;`" },
+                { "id": "t3-q3-b", "text": "ptr is a constant pointer to an integer. The pointer cannot be reassigned to a new address, but the integer data CAN be modified.", "is_correct": true, "explanation": "Read right-to-left: 'ptr' is a 'const' 'pointer' to an 'int'." },
+                { "id": "t3-q3-c", "text": "ptr is a constant pointer to a constant integer. Nothing can be modified.", "is_correct": false, "explanation": "That would be `const int * const ptr;`" },
+                { "id": "t3-q3-d", "text": "It is a syntax error.", "is_correct": false, "explanation": "It is perfectly valid syntax." }
+              ]
+            },
+            {
+              "question": "Why is `uint32_t` preferred over `unsigned int` in systems networking code?",
+              "options": [
+                { "id": "t3-q4-a", "text": "It compiles to faster assembly code.", "is_correct": false, "explanation": "They compile to identical instructions." },
+                { "id": "t3-q4-b", "text": "It prevents the compiler from optimizing out signed comparisons.", "is_correct": false, "explanation": "They are both unsigned." },
+                { "id": "t3-q4-c", "text": "It guarantees exactly 32 bits of width regardless of whether the code is compiled on an 8-bit microcontroller or a 64-bit server, preventing packet misalignment.", "is_correct": true, "explanation": "Standard types drift in size based on architecture. Exact-width `<stdint.h>` types guarantee ABI binary compatibility across all systems." },
+                { "id": "t3-q4-d", "text": "It automatically formats network byte order (Endianness).", "is_correct": false, "explanation": "You still must use `htonl()` for endianness; types do not handle byte ordering." }
+              ]
+            },
+            {
+              "question": "What physically enforces the protection of a global `const` variable from being modified?",
+              "options": [
+                { "id": "t3-q5-a", "text": "The C Compiler (cc1) alone.", "is_correct": false, "explanation": "If you cast away const `(int*)`, cc1 will allow it." },
+                { "id": "t3-q5-b", "text": "The Linker places it in the `.rodata` segment, and the OS configures the hardware Memory Management Unit (MMU) to trigger a hardware fault if a write is attempted.", "is_correct": true, "explanation": "It is enforced physically in silicon. A rogue pointer writing to `.rodata` triggers an inescapable Segmentation Fault from the CPU." },
+                { "id": "t3-q5-c", "text": "The GNU C Library (glibc).", "is_correct": false, "explanation": "Libraries don't enforce memory protection." },
+                { "id": "t3-q5-d", "text": "It isn't enforced. It is just a developer suggestion.", "is_correct": false, "explanation": "While true for local variables on the stack, global consts are hardware-locked." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

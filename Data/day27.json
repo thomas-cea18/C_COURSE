@@ -1,0 +1,225 @@
+{
+  "day": 27,
+  "module": "7: POSIX Systems & Process Control",
+  "topics": [
+    {
+      "header_hub": {
+        "title": "Hardware Interrupts Routed to Software Signals",
+        "category": "Architecture",
+        "complexity": "Intermediate",
+        "standard": "POSIX",
+        "read_time": 25,
+        "prerequisites": ["day-26-topic-3"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day27-t1-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day27-t1-txt-strategic-problem",
+          "content": "<p>C programs are designed to execute synchronously, line by line. But the real world is entirely asynchronous. What happens if the user physically presses <code>Ctrl+C</code> on their keyboard? What happens if the CPU's hardware MMU detects your program attempting to read unmapped memory (a Segmentation Fault)? The Operating System cannot wait for your program to finish its current loop to inform you of these events. The OS Kernel must violently and instantly interrupt your process's execution flow. In POSIX systems, this asynchronous interruption mechanism is achieved using <strong>Signals</strong>.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day27-t1-sec-mechanics",
+          "title": "Internal Mechanics: The Context Hijack"
+        },
+        {
+          "type": "text",
+          "block_id": "day27-t1-txt-mechanics",
+          "content": "<p>Signals are primitive, integer-based software interrupts (e.g., <code>SIGINT = 2</code>, <code>SIGSEGV = 11</code>, <code>SIGKILL = 9</code>). When the Kernel decides to deliver a signal to your process, it literally hijacks your CPU thread. It pauses your current C instruction, pushes a special \"Signal Frame\" onto your Stack containing your current CPU registers, and forcefully changes the CPU Instruction Pointer (PC) to jump to a <strong>Signal Handler</strong> function. Once the handler function finishes and returns, the Kernel restores your saved registers and resumes your original code exactly where it left off, as if nothing happened. If you do not register a custom handler, the Kernel executes a Default Action (usually terminating the process instantly).</p>"
+        },
+        {
+          "type": "svg_diagram",
+          "block_id": "day27-t1-svg-mechanics",
+          "caption": "An execution timeline showing the main thread abruptly halted by the Kernel to execute the Signal Handler function asynchronously.",
+          "alt_text": "Visual showing the Main Execution Context running, a Signal arriving, the context switching to a Signal Handler, and then returning to Main Execution.",
+          "svg_code": "<svg viewBox='0 0 600 250' xmlns='http://www.w3.org/2000/svg'><rect width='600' height='250' fill='var(--bg-card)'/><g transform='translate(20, 40)'><rect x='0' y='0' width='560' height='40' fill='rgba(14, 165, 233, 0.1)' stroke='var(--accent)' stroke-width='2' rx='4'/><text x='10' y='25' fill='var(--accent)' font-family='monospace' font-weight='bold'>Main Thread Execution</text><path d='M 180 20 L 250 20' stroke='var(--accent)' stroke-width='4' marker-end='url(#arrow-acc)'/></g><g transform='translate(20, 140)'><rect x='280' y='0' width='280' height='40' fill='rgba(245, 158, 11, 0.1)' stroke='var(--warning-border)' stroke-width='2' rx='4'/><text x='290' y='25' fill='var(--warning-border)' font-family='monospace' font-weight='bold'>Signal Handler executes</text><path d='M 490 20 L 550 20' stroke='var(--warning-border)' stroke-width='4' marker-end='url(#arrow-warn)'/></g><path d='M 260 40 L 290 140' stroke='var(--danger-border)' stroke-width='3' stroke-dasharray='4,4' marker-end='url(#arrow-danger)'/><text x='160' y='110' fill='var(--danger-border)' font-family='monospace' font-size='10' font-weight='bold'>Kernel Hijacks CPU</text><text x='160' y='125' fill='var(--text-secondary)' font-family='monospace' font-size='10'>(e.g. SIGINT Arrives)</text><path d='M 560 140 L 590 40' stroke='var(--success-border)' stroke-width='3' stroke-dasharray='4,4' marker-end='url(#arrow-succ)'/><text x='480' y='110' fill='var(--success-border)' font-family='monospace' font-size='10' font-weight='bold'>Context Restored</text><defs><marker id='arrow-acc' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--accent)'/></marker><marker id='arrow-warn' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--warning-border)'/></marker><marker id='arrow-danger' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--danger-border)'/></marker><marker id='arrow-succ' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto'><path d='M 0 0 L 10 5 L 0 10 z' fill='var(--success-border)'/></marker></defs></svg>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day27-t1-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day27-t1-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "What physically happens to the CPU execution state when an unblocked Signal arrives at a running process?",
+              "options": [
+                { "id": "t1-q1-a", "text": "The process spawns a new background thread to handle the signal.", "is_correct": false, "explanation": "Signals do not inherently spawn threads; they hijack the existing thread." },
+                { "id": "t1-q1-b", "text": "The OS Kernel instantly suspends the current instruction, pushes the CPU registers onto the stack, and forcibly jumps the Instruction Pointer to the registered Signal Handler function.", "is_correct": true, "explanation": "This asynchronous hijack forces the application to deal with the signal immediately." },
+                { "id": "t1-q1-c", "text": "The process safely finishes its current function before checking the signal queue.", "is_correct": false, "explanation": "Signals do not wait for functions to finish; they interrupt mid-execution." },
+                { "id": "t1-q1-d", "text": "The process ignores the signal unless the programmer explicitly calls `read_signal()`.", "is_correct": false, "explanation": "Signals are handled asynchronously by the Kernel, not synchronously polled." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Trapping Signals using sigaction (vs deprecated signal())",
+        "category": "API Mechanics",
+        "complexity": "Advanced",
+        "standard": "POSIX",
+        "read_time": 25,
+        "prerequisites": ["day-27-topic-1"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day27-t2-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day27-t2-txt-strategic-problem",
+          "content": "<p>Historically, programmers registered signal handlers using the <code>signal(SIGINT, my_handler)</code> function. <strong>This function is universally deprecated in modern systems engineering.</strong> The original <code>signal()</code> API was implemented inconsistently across UNIX flavors (System V vs BSD). On some systems, handling a signal automatically un-registered the handler, requiring you to re-register it inside the handler itself, which creates a fatal Race Condition if a second signal arrives before re-registration. Furthermore, <code>signal()</code> provided no reliable way to block other signals while the handler was running. To achieve safe, deterministic signal trapping across all POSIX compliant operating systems, we must use the robust <strong><code>sigaction()</code></strong> system call.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day27-t2-sec-api",
+          "title": "API / Syntax Specification"
+        },
+        {
+          "type": "api_reference",
+          "block_id": "day27-t2-api-main",
+          "signature": "<span class=\"syntax-kw\">#include</span> <span class=\"syntax-str\">&lt;signal.h&gt;</span>\n\n<span class=\"syntax-kw\">struct</span> sigaction sa;\nsa.sa_handler = handle_sigint;\nsigemptyset(&amp;sa.sa_mask);\nsa.sa_flags = SA_RESTART;\n\nsigaction(SIGINT, &amp;sa, NULL);",
+          "description": "The modern POSIX standard for safely inspecting and modifying the action associated with a specific signal.",
+          "parameters": [
+            { "name": "sa_handler", "type": "Function Pointer", "description": "The callback function to execute when the signal arrives (e.g., void handle_sigint(int sig))." },
+            { "name": "sa_mask", "type": "sigset_t", "description": "A set of signals that will be physically blocked by the Kernel while this specific handler is executing, preventing overlapping handler chaos." },
+            { "name": "SA_RESTART", "type": "Flag", "description": "Instructs the Kernel to automatically restart any blocking syscalls (like read() or accept()) that were interrupted by this signal, rather than failing them with EINTR." }
+          ],
+          "returns": { "type": "int", "description": "Returns 0 on success, or -1 on failure (setting errno)." },
+          "complexity": "O(1) system call. Permanently modifies the process's Signal Table.",
+          "exceptions": "You CANNOT catch or ignore SIGKILL (9) or SIGSTOP (19). The Kernel enforces these mathematically to ensure rogue processes can always be terminated by administrators."
+        },
+        {
+          "type": "section_title",
+          "block_id": "day27-t2-sec-code",
+          "title": "Evolutionary Code"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day27-t2-cb-sigaction",
+          "language": "c",
+          "header": "Safely Catching SIGINT to Prevent Database Corruption (Assessment Check)",
+          "code": "#include &lt;stdio.h&gt;\n#include &lt;stdlib.h&gt;\n#include &lt;signal.h&gt;\n#include &lt;unistd.h&gt;\n\n// We must use a volatile sig_atomic_t to guarantee safe, lock-free mutation \n// of this variable across asynchronous thread contexts.\nvolatile sig_atomic_t keep_running = 1;\n\n// The actual Signal Handler function\nvoid handle_sigint(int sig) {\n    // The user pressed Ctrl+C. We do NOT call exit() here.\n    // We simply flip the global state flag.\n    keep_running = 0;\n}\n\nint main() {\n    // 1. Prepare the sigaction struct\n    struct sigaction sa;\n    sa.sa_handler = handle_sigint;\n    \n    // 2. Block all other signals while our handler runs\n    sigfillset(&sa.sa_mask);\n    \n    // 3. Restart interrupted system calls\n    sa.sa_flags = SA_RESTART;\n    \n    // 4. Register the handler with the Kernel for SIGINT (Ctrl+C)\n    if (sigaction(SIGINT, &sa, NULL) == -1) {\n        perror(\"Failed to setup sigaction\");\n        exit(1);\n    }\n    \n    printf(\"Server booting up. Press Ctrl+C to initiate safe shutdown.\\n\");\n    \n    // 5. The Main Event Loop\n    while (keep_running) {\n        // Server does its normal operations here...\n        sleep(1); \n    }\n    \n    // 6. Graceful Teardown\n    // Because we trapped SIGINT, the program didn't violently die.\n    // We can now safely flush our database connections before exiting.\n    printf(\"\\nFlushing database logs to disk...\\n\");\n    printf(\"Shutting down cleanly. Goodbye.\\n\");\n    \n    return 0;\n}"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day27-t2-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day27-t2-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "Why is the legacy `signal()` function banned in modern C engineering architectures in favor of `sigaction()`?",
+              "options": [
+                { "id": "t2-q1-a", "text": "Because `signal()` consumes more memory.", "is_correct": false, "explanation": "Memory consumption is negligible for both." },
+                { "id": "t2-q1-b", "text": "Because `signal()` behaves inconsistently across OS flavors, suffers from fatal Race Conditions due to single-shot execution requiring re-registration, and offers no mechanism to block other signals during handler execution.", "is_correct": true, "explanation": "`sigaction()` provides rigorous, deterministic control over the Kernel's signal masking logic." },
+                { "id": "t2-q1-c", "text": "Because `signal()` cannot catch `SIGKILL`.", "is_correct": false, "explanation": "Neither function can catch `SIGKILL`." },
+                { "id": "t2-q1-d", "text": "Because `signal()` requires root privileges.", "is_correct": false, "explanation": "Neither requires root to catch standard signals sent to the user's own processes." }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "header_hub": {
+        "title": "Reentrancy Rules: What functions are Async-Signal-Safe?",
+        "category": "Security",
+        "complexity": "Elite",
+        "standard": "POSIX",
+        "read_time": 30,
+        "prerequisites": ["day-27-topic-2"]
+      },
+      "content_blocks": [
+        {
+          "type": "section_title",
+          "block_id": "day27-t3-sec-strategic-problem",
+          "title": "The Strategic Problem"
+        },
+        {
+          "type": "text",
+          "block_id": "day27-t3-txt-strategic-problem",
+          "content": "<p>When you are inside a Signal Handler, you are operating in an incredibly dangerous context. You must remember that the signal hijacked your main thread. Imagine your main thread was in the middle of executing <code>printf()</code>, and <code>printf()</code> had just acquired the internal glibc Mutex lock on the <code>stdout</code> stream. A <code>SIGINT</code> suddenly arrives. The Kernel halts the thread and jumps to your Signal Handler. Inside the handler, you decide to log a message by calling <code>printf(\"Caught signal!\");</code>. The handler's <code>printf()</code> tries to acquire the <code>stdout</code> Mutex lock. But the lock is already held by the paused main thread! The handler goes to sleep waiting for the lock, but the main thread can never wake up to release it because it's suspended until the handler finishes. <strong>You have just permanently Deadlocked your entire application.</strong></p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day27-t3-sec-mechanics",
+          "title": "Internal Mechanics: Async-Signal-Safety"
+        },
+        {
+          "type": "text",
+          "block_id": "day27-t3-txt-mechanics",
+          "content": "<p>You are mathematically forbidden from calling any function inside a Signal Handler that is not <strong>Async-Signal-Safe</strong>. A function is only Async-Signal-Safe if it is <em>Reentrant</em>—meaning it does not use static data, does not use Mutex locks, and does not invoke <code>malloc()</code> or <code>free()</code>. The POSIX standard strictly defines a whitelist of functions you are allowed to call inside a handler. <code>write()</code> is safe. <code>read()</code> is safe. <code>_exit()</code> is safe. <code>printf()</code>, <code>malloc()</code>, <code>free()</code>, and almost the entire C Standard Library are <strong>DANGEROUS AND BANNED</strong>.</p>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day27-t3-sec-debug-lab",
+          "title": "Hands-On Debug Lab"
+        },
+        {
+          "type": "text",
+          "block_id": "day27-t3-txt-debug-intro",
+          "content": "<p>Analyze the following broken snippet. Find the vulnerability before expanding the solution below.</p>"
+        },
+        {
+          "type": "code_block",
+          "block_id": "day27-t3-cb-debug-lab",
+          "language": "c",
+          "header": "Vulnerable Target: The Fatal Handler",
+          "code": "#include &lt;signal.h&gt;\n#include &lt;stdio.h&gt;\n#include &lt;stdlib.h&gt;\n\nvoid handle_alarm(int sig) {\n    // Engineer wants to log the alarm event\n    // DANGER: printf is NOT async-signal-safe\n    printf(\"Alarm triggered!\\n\");\n    \n    // DANGER: exit() flushes standard I/O buffers, which uses locks!\n    exit(1);\n}"
+        },
+        {
+          "type": "qa_list",
+          "block_id": "day27-t3-qa-debug-lab",
+          "items": [
+            { "question": "Reveal Post-Mortem Analysis", "answer": "The engineer committed two catastrophic errors. First, `printf()` utilizes internal locks and static buffers. If the main thread was interrupted inside a `printf` call, calling `printf` in the handler guarantees an instantaneous deadlock. Second, the standard `exit()` function invokes `fflush()` on all open `FILE*` streams and runs registered `atexit()` handlers, which also rely on Mutex locks. Fix: Inside a signal handler, if you must print data, you must use the raw POSIX `write()` syscall (e.g., `write(STDOUT_FILENO, \"Alarm\\n\", 6);`). If you must terminate the program immediately from within the handler, you must use `_exit()` (the raw syscall that bypasses all C library cleanup)." }
+          ]
+        },
+        {
+          "type": "callout",
+          "block_id": "day27-t3-callout-laws",
+          "variant": "success",
+          "color": "var(--success-border)",
+          "title": "Staff Engineer Invariant Laws",
+          "content": "<ul><li><strong>The Volatile Sig-Atomic Rule:</strong> The absolute safest way to handle a signal is to do virtually nothing. Declare a global <code>volatile sig_atomic_t flag = 0;</code>. Inside your handler, simply execute <code>flag = 1;</code> and return immediately. Your main application loop should periodically check this flag and execute the heavy cleanup logic (like closing databases or freeing memory) securely in the synchronous main thread. The <code>volatile</code> keyword prevents compiler caching, and <code>sig_atomic_t</code> mathematically guarantees the CPU will write the integer in a single, uninterruptible clock cycle.</li></ul>"
+        },
+        {
+          "type": "section_title",
+          "block_id": "day27-t3-sec-quiz",
+          "title": "Mastery Calibration"
+        },
+        {
+          "type": "knowledge_check",
+          "block_id": "day27-t3-quiz-mastery",
+          "time_limit_seconds": 180,
+          "questions": [
+            {
+              "question": "Why is executing `printf()` or `malloc()` inside a Signal Handler considered a fatal architectural flaw?",
+              "options": [
+                { "id": "t3-q1-a", "text": "They consume too much stack memory.", "is_correct": false, "explanation": "Stack memory usage is not the primary mechanism of failure here." },
+                { "id": "t3-q1-b", "text": "They are not Async-Signal-Safe. Both functions utilize internal Mutex locks. If the main thread was holding the lock when the signal interrupted it, calling the function again inside the handler will cause an unrecoverable Deadlock.", "is_correct": true, "explanation": "Signal handlers must only use Reentrant functions (like raw POSIX `write`)." },
+                { "id": "t3-q1-c", "text": "They clear the signal mask automatically.", "is_correct": false, "explanation": "Signal masks are controlled by the `sigaction` struct, not standard library calls." },
+                { "id": "t3-q1-d", "text": "They execute in a separate process space.", "is_correct": false, "explanation": "The handler executes in the exact same process space, which is why the locks collide." }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
